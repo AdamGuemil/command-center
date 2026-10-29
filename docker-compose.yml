@@ -1,13 +1,10 @@
-# docker compose up  ->  http://localhost:8787 en mode demo (aucune cle).
-# Pour le vrai jeu : retire CC_DEMO et passe un fichier .env (env_file ci-dessous).
+# docker compose up  ->  http://localhost:8787, configure par le fichier .env.
 services:
   command-center:
     build: .
     ports:
       - "127.0.0.1:8787:8787"
-    environment:
-      CC_DEMO: "1"
-    # env_file: .env
+    env_file: .env
     volumes:
       - cc-data:/app/data
 volumes:

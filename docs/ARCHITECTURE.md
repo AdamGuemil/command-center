@@ -61,15 +61,20 @@ arsenal).
 day. The schema is plain SQL, so moving to PostgreSQL when the console is hosted with
 several workers (lot 6) is a driver change, not a redesign.
 
-## ADR 4: a demo world behind the real network layer
+## ADR 4: FastAPI with synchronous handlers
 
-**Context.** A console for a live game is hard to show or to test without the game.
+**Context.** The console started as a standard-library HTTP server, and the Discord bot
+(tickets, logs, reaction roles, Roblox account linking) ran as a separate script. Hosting it
+(lot 6) needs one service with a documented API, and the bot needs a long-lived asyncio loop.
 
-**Decision.** `CC_DEMO=1` replaces `urllib.request.urlopen` with an in-memory router that
-implements the Roblox and Discord endpoints the console uses (same paths, payloads and error
-codes) and runs a small simulation. Nothing else in the code knows it is in demo mode.
+**Decision.** FastAPI serves the existing routes unchanged (`core/handlers.py`: same paths,
+bodies, `500 {"error": ...}` errors and audit journal), plus the UI and an OpenAPI page at
+`/api/docs`. Handlers stay synchronous and run in FastAPI's thread pool; the bot runs as a
+task in the same event loop when `CC_BOT=1`. The launcher binds the port itself without
+`SO_REUSEADDR` (exclusive on Windows) so a second instance fails loudly.
 
-**Consequences.** The demo exercises the production code paths end to end, including error
-handling (409 on a taken lock, 429 on a second notification the same day). The simulation
-has to follow API changes; tests cover the main flows (registry, season close, command
-acknowledgement, offline edit, notification limit).
+**Consequences.** One process, one deployment, the bot can later react to console events
+directly. The Open Cloud and Discord REST clients were not rewritten as async: they are
+I/O-bound calls of a few hundred milliseconds, the thread pool absorbs them, and a rewrite
+would have touched every module for no visible gain at this scale. Account links moved from
+`roblox_links.json` to SQLite (imported once).

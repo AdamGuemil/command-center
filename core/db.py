@@ -11,6 +11,7 @@ Tables :
   notified  registre des notifications joueurs : une ligne par joueur et par jour UTC (Roblox
             n'en delivre qu'une par jour et par experience ; ne pas gaspiller la suivante).
   campaigns envois de notifications : cle du catalogue, sujet (ref), progression, erreur.
+  discord_links  liaison compte Discord <-> compte Roblox (bot : /link, /confirm, /sync).
 
 Une connexion par appel, sous verrou : le serveur HTTP et le veilleur ecrivent depuis des
 fils differents, et le volume est minuscule. Le fichier est local et non versionne.
@@ -72,6 +73,9 @@ CREATE TABLE IF NOT EXISTS campaigns (
   failed INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL, error TEXT, finished_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS campaigns_key_ref ON campaigns(key, ref);
+CREATE TABLE IF NOT EXISTS discord_links (
+  discord_id INTEGER PRIMARY KEY, roblox_id INTEGER NOT NULL, at INTEGER NOT NULL
+);
 """
 
 
@@ -345,3 +349,22 @@ def close_stale_campaigns() -> None:
     with connect() as con:
         con.execute("UPDATE campaigns SET state = 'stopped', error = COALESCE(error, ?), finished_at = ? "
                     "WHERE state = 'running'", ("Interrompue par l'arrêt du Command Center.", int(time.time())))
+
+
+# LIAISONS DISCORD <-> ROBLOX (bot)
+def get_link(discord_id: int) -> int | None:
+    with connect() as con:
+        r = con.execute("SELECT roblox_id FROM discord_links WHERE discord_id = ?", (int(discord_id),)).fetchone()
+        return int(r["roblox_id"]) if r else None
+
+
+def set_link(discord_id: int, roblox_id: int) -> None:
+    with connect() as con:
+        con.execute("INSERT OR REPLACE INTO discord_links(discord_id, roblox_id, at) VALUES (?,?,?)",
+                    (int(discord_id), int(roblox_id), int(time.time())))
+
+
+def links() -> list[tuple[int, int]]:
+    with connect() as con:
+        return [(int(r["discord_id"]), int(r["roblox_id"]))
+                for r in con.execute("SELECT discord_id, roblox_id FROM discord_links")]

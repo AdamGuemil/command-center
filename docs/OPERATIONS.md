@@ -15,17 +15,17 @@ dans Santé et Live.
 
 ```powershell
 copy .env.example .env      # puis remplis .env
+pip install -r requirements.txt   # une fois : FastAPI, uvicorn, discord.py
 python server.py            # ou double-clic sur start.bat
 ```
 
-Sans aucune clé : `CC_DEMO=1 python server.py` (ou `docker compose up`) lance le faux univers
-de démonstration, avec ses données dans `data/demo/`.
-
 Le dashboard s'ouvre sur <http://127.0.0.1:8787>.
 
-**Aucune dépendance à installer** pour le dashboard : tout passe par la
-bibliothèque standard de Python. (`discord.py` n'est utile que pour
-`tools/setup_discord.py`, à lancer une seule fois, et à `bot.py`.)
+Un seul processus : l'interface, l'API JSON (documentée sur `/api/docs`) et, avec
+`CC_BOT=1` dans le `.env`, le bot Discord (tickets, journaux, rôles par réaction, liaison
+Roblox `/link`, `/confirm`, `/sync`, `/whois`). Le bot lit `data/bot_data.json`, écrit une fois
+par `tools/setup_discord.py` ; les liaisons Discord ↔ Roblox sont dans `data/cc.db` (un ancien
+`roblox_links.json` est importé au premier démarrage). `python bot.py` le lance seul.
 
 Il ne tourne **que pendant que tu l'utilises** — `Ctrl+C` et plus rien ne
 tourne. Pas d'hébergement 24/7.

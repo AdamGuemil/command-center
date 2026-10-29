@@ -11,9 +11,10 @@ data/live_timeline.json
 data/todo_state.json
 data/notifications.json
 data/*.corrupt.json
-data/demo/
 
-# Bot Discord (lot 5b : passera en base)
+# Bot Discord : configuration du serveur (setup_discord) et ancien fichier de liaisons
+data/bot_data.json
+data/roblox_links.json
 bot_data.json
 roblox_links.json
 

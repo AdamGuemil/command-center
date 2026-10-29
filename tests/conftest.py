@@ -6,7 +6,6 @@ from pathlib import Path
 os.environ.setdefault("ROBLOX_UNIVERSE_ID", "1000000001")
 os.environ.setdefault("ROBLOX_PLACE_ID", "2000000001")
 os.environ.setdefault("ROBLOX_GAME_PLACE_ID", "2000000002")
-os.environ.pop("CC_DEMO", None)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest  # noqa: E402

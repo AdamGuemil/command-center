@@ -1,4 +1,4 @@
-# Command Center : un seul processus Python, bibliotheque standard uniquement.
+# Command Center : un seul processus (FastAPI + uvicorn, et le bot Discord si CC_BOT=1).
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -8,6 +8,8 @@ ENV PYTHONUNBUFFERED=1 \
     CC_OPEN_BROWSER=0
 
 WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN useradd --create-home --uid 1000 cc && chown -R cc /app
 USER cc

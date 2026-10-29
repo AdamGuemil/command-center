@@ -4,12 +4,12 @@
 ================================================================================
 Builds the server ONCE: roles, categories, channels, native AutoMod, native
 Onboarding (faction), in-game webhooks, and the info/rules/ticket panels. Writes
-`bot_data.json` for the runtime bot (discord_bot.py).
+`data/bot_data.json` for the runtime bot (core/bot.py, started with CC_BOT=1).
 
 WHAT NEEDS A 24/7 PROCESS vs NOT
   • No process needed (works with the bot OFFLINE):
       structure/roles, AutoMod, Onboarding faction picker, game->Discord webhooks.
-  • Needs discord_bot.py running (host it in the cloud, NOT your PC):
+  • Needs the runtime bot running (CC_BOT=1 python server.py, or python bot.py):
       tickets, logging, /link, /sync (Roblox<->Discord role sync).
 
  TOKEN SECURITY — never hardcode it. Read from env var:
@@ -63,7 +63,7 @@ ENABLE_GAME_FEED  = True     # webhook channels for in-game -> Discord
 ENABLE_AUTOMOD    = True
 ENABLE_ONBOARDING = True     # native faction picker (needs Community mode enabled)
 ENABLE_SERVER_SETTINGS = True
-CONFIG_OUT = "bot_data.json"
+CONFIG_OUT = str(cc_config.DATA_DIR / "bot_data.json")   # lu par core/bot.py
 
 intents = discord.Intents.default()
 intents.guilds = True

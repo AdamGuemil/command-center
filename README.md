@@ -4,26 +4,12 @@ A live-ops console for **Shroud War**, a Roblox PvP experience: live servers and
 season automation, player actions, out-of-game notifications and Discord announcements,
 from one page. It tells the operator *what to do now* instead of waiting to be asked.
 
-![CI](https://github.com/OWNER/shroud-command-center/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/AdamGuemil/command-center/actions/workflows/ci.yml/badge.svg)
 
 > The interface and the detailed operating docs are in French (the team's language).
-> Everything runs on the Python standard library; no build step for the front end.
+> One Python process (FastAPI) serves the API, the UI and the Discord bot; no build step for the front end.
 
 ![Home: cards that say what needs attention](docs/images/home.png)
-
-## Try it in one command
-
-```bash
-docker compose up            # then open http://localhost:8787
-# or, without Docker:
-CC_DEMO=1 python server.py
-```
-
-Demo mode needs no key. It replaces Roblox and Discord with an in-memory universe that
-answers like the real APIs: two hubs and four matches heartbeating every 5 s, a season that
-closes every **10 minutes** (archive, then ranked payout a minute later), cheat flags,
-honeypot hits, negative reviews, script-error bursts, a hub left on an old place version.
-Every button works against it; nothing leaves the machine.
 
 ## What it does
 
@@ -47,7 +33,7 @@ flowchart LR
     G["Game servers<br/>Hub and matches"]
     OC[("Open Cloud<br/>DataStores, MemoryStore,<br/>Messaging, Analytics")]
   end
-  CC["Command Center<br/>server.py + core/"]
+  CC["Command Center<br/>FastAPI + Discord bot"]
   UI["Web UI<br/>ES modules, no build"]
   DB[("SQLite<br/>events, audit, campaigns")]
   D["Discord"]
@@ -58,7 +44,7 @@ flowchart LR
   OC -- "MessagingService" --> G
   CC --- DB
   CC <-- "local JSON API" --> UI
-  CC -- "bot REST" --> D
+  CC -- "bot (REST + gateway)" --> D
   CC -- "notifications" --> OC
   OC -.-> P
 ```
@@ -69,8 +55,10 @@ flowchart LR
   traffic, nothing to secure on the game side. See [ADR 1](docs/ARCHITECTURE.md#adr-1-pull-not-push).
 - **Commands reuse the game's existing messaging topic** (`FW_Event`), with ids, expiry and
   acknowledgements on the event bus. See [ADR 2](docs/ARCHITECTURE.md#adr-2-commands-travel-on-the-existing-fw_event-topic).
-- **SQLite** keeps events, the audit journal, card state, command history, edit backups and
-  the notification register. See [ADR 3](docs/ARCHITECTURE.md#adr-3-sqlite).
+- **FastAPI** serves the same JSON routes as before; handlers stay synchronous and run in
+  the thread pool, so the Discord bot shares the event loop. See [ADR 4](docs/ARCHITECTURE.md#adr-4-fastapi-with-synchronous-handlers).
+- **SQLite** keeps events, the audit journal, card state, command history, edit backups,
+  the notification register and Discord-Roblox account links. See [ADR 3](docs/ARCHITECTURE.md#adr-3-sqlite).
 - **Every data flow** (source, transport, destination, rate, cost, failure mode) is listed in
   [docs/PIPELINES.md](docs/PIPELINES.md).
 
@@ -88,11 +76,12 @@ flowchart LR
 ## Repository layout
 
 ```
-server.py            HTTP server, JSON API, static files (stdlib only)
+server.py            launcher (uvicorn on 127.0.0.1:8787, single instance)
+app.py               FastAPI app: JSON API from core/handlers.py, static UI, lifespan
 announce.py          CLI for Discord announcements (shares templates with the UI)
-bot.py               Discord runtime bot: tickets, /link, role sync (to be merged, lot 5b)
-core/                domain modules: live registry, cards, events, commands, edits,
-                     notifications, players, Faction War, ranked, analytics, demo world...
+bot.py               runs the Discord bot alone (it normally runs inside the server, CC_BOT=1)
+core/                domain modules: API handlers, Discord bot, live registry, cards, events, commands, edits,
+                     notifications, players, Faction War, ranked, analytics...
 web/                 UI: index.html, css/, js/ (ES modules)
 data/                seed data: announcement templates, settings, arsenal
 docs/                PIPELINES.md, ARCHITECTURE.md (ADRs), OPERATIONS.md (French ops guide),
@@ -104,8 +93,10 @@ tools/               setup_discord.py (one-shot server builder), Cloudflare webh
 ## Run it for real
 
 ```bash
+pip install -r requirements.txt
 cp .env.example .env         # Open Cloud key, universe and place ids, Discord bot token
-python server.py             # http://127.0.0.1:8787, opens the browser
+python server.py             # http://127.0.0.1:8787, opens the browser; API docs at /api/docs
+# or: docker compose up
 ```
 
 The Open Cloud permissions to grant, and how to check them, are in
@@ -119,18 +110,15 @@ to a network. Hosting with Discord OAuth and roles is planned (see Roadmap).
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                      # cards, notification scheduler, commands, offline edits, demo world...
+pytest                      # cards, notification scheduler, commands, offline edits...
 ruff check . && mypy        # lint and types
 node tests/e2e/browser_live.cjs   # UI test against a mocked API (Playwright)
 ```
 
-CI runs all of the above on Python 3.11 to 3.13, builds the Docker image and smoke-tests
-it in demo mode.
+CI runs all of the above on Python 3.11 to 3.13 and builds the Docker image.
 
 ## Roadmap
 
-- **5b**: port the HTTP layer to FastAPI (same routes, protected by the current tests),
-  async Open Cloud client, Discord bot merged into the same process.
 - **6**: hosted 24/7 behind HTTPS with Discord OAuth and roles (moderators can kick and
   message, not wipe or give), Roblox webhooks (refunds, subscriptions, right-to-erasure) with
   HMAC verification, per-rule automation (manual by default; wipes, bans, restarts and

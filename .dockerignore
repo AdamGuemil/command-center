@@ -8,7 +8,6 @@ venv
 .mypy_cache
 .ruff_cache
 data/cc.db*
-data/demo
 data/history.json
 data/schedule.json
 data/live_*.json

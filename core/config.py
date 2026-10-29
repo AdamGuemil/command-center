@@ -66,16 +66,6 @@ ROBLOX_OPENCLOUD_KEY = _get("ROBLOX_OPENCLOUD_KEY")
 GAME_NAME = _get("GAME_NAME", "Shroud War")
 GAME_URL = _get("ROBLOX_GAME_URL", f"https://www.roblox.com/games/{ROBLOX_PLACE_ID}" if ROBLOX_PLACE_ID else "")
 
-# Mode demo : faux univers Roblox et faux Discord, aucune cle (core/demo.py). Ses donnees
-# locales vivent dans data/demo/, a partir d'une copie des fichiers de depart du depot.
-DEMO = _get("CC_DEMO") in ("1", "true", "yes")
-if DEMO:
-    DATA_DIR = ROOT / "data" / "demo"
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    for _seed in ("templates.json", "settings.json", "arsenal.json", "item_stats.json"):
-        if (ROOT / "data" / _seed).is_file() and not (DATA_DIR / _seed).exists():
-            (DATA_DIR / _seed).write_bytes((ROOT / "data" / _seed).read_bytes())
-
 # Depot du jeu (facultatif) : dossier qui contient HUB/ et GAME/. Sert a lire la version des
 # donnees et a afficher ses guides dans l'ecran Guide.
 GAME_ROOT = Path(_get("CC_GAME_ROOT")).expanduser() if _get("CC_GAME_ROOT") else None
@@ -84,6 +74,8 @@ GAME_ROOT = Path(_get("CC_GAME_ROOT")).expanduser() if _get("CC_GAME_ROOT") else
 HOST = _get("CC_HOST", "127.0.0.1")
 PORT = int(_get("CC_PORT", "8787") or 8787)
 OPEN_BROWSER = _get("CC_OPEN_BROWSER", "1") != "0"   # 0 dans un conteneur
+WATCH = _get("CC_WATCH", "1") != "0"                 # veilleur live (0 : tests)
+BOT = _get("CC_BOT") in ("1", "true", "yes")          # bot Discord dans le meme processus
 
 # Constantes partagees avec le jeu
 # La version des donnees (SharedConfig.DS_VERSION) prefixe tous les magasins. Ordre :
@@ -142,8 +134,6 @@ COLORS = {
 def missing_secrets() -> list[str]:
     """Liste ce qui manque pour que TOUT fonctionne. Sert au panneau d'etat :
     on veut dire precisement quoi brancher, pas juste 'erreur'."""
-    if DEMO:
-        return []
     gaps = []
     if not DISCORD_BOT_TOKEN:
         gaps.append("DISCORD_BOT_TOKEN")
