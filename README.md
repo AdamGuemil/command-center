@@ -101,7 +101,8 @@ docs/                PIPELINES.md, ARCHITECTURE.md (ADRs), OPERATIONS.md (French
                      contract.schema.json
 tests/               pytest suite (no network); tests/e2e: Playwright UI test with mocked API
 tools/               setup_discord.py (one-shot server builder), Cloudflare webhook relay
-deploy/              Caddyfile (HTTPS reverse proxy used by docker-compose.yml)
+deploy/              Caddyfile (HTTPS proxy), setup-server.sh (server setup), configure.sh (.env, start,
+                     deploy key), deploy.sh (update + rollback)
 ```
 
 ## Run it
@@ -114,12 +115,19 @@ cp .env.example .env         # Open Cloud key, universe and place ids, Discord b
 python server.py             # http://127.0.0.1:8787, opens the browser; API docs at /api/docs
 ```
 
-**Hosted** (HTTPS, Discord sign-in, always on): fill the "Heberge" part of `.env` (OAuth
-client, public URL, domain, admin ids), point the domain's DNS at the server, then
+**Hosted** (HTTPS, Discord sign-in, always on) on any Ubuntu server, for instance Oracle
+Cloud's free tier ([step-by-step guide, in French](docs/HEBERGEMENT_ORACLE.md)):
 
 ```bash
-docker compose up -d --build  # the console behind Caddy, data in a named volume
+curl -fsSL https://raw.githubusercontent.com/AdamGuemil/command-center/main/deploy/setup-server.sh | sudo bash
+sudo bash /opt/shroud-cc/deploy/configure.sh   # asks what is missing, starts the console behind Caddy
 ```
+
+Without a domain, the console is served on `<ip>.sslip.io` with a Let's Encrypt certificate.
+
+After that, every green push to `main` is deployed by CI over a forced-command SSH key
+(`deploy/deploy.sh`: pull the tested image, restart, wait for `/healthz`, roll back if it
+does not answer).
 
 Step-by-step, including Roblox webhooks and the uptime probe, in
 [docs/OPERATIONS.md](docs/OPERATIONS.md#héberger). The console refuses to start exposed
@@ -138,11 +146,11 @@ node tests/e2e/browser_live.cjs   # UI test against a mocked API (Playwright)
 
 CI runs all of the above on Python 3.11 to 3.13, builds the Docker image, checks that it
 refuses to start exposed without sign-in and that it serves only the login page to anonymous
-visitors, then publishes the image of every green `main` commit to `ghcr.io`.
+visitors, then publishes the image of every green `main` commit to `ghcr.io` and deploys it
+when a server is configured.
 
 ## Roadmap
 
-- Automatic deployment of the published image to the chosen host.
 - Match history (`match_end`) and failed-receipt events on the bus; ending a running match.
 
 ## License

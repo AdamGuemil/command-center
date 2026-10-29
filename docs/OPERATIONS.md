@@ -216,51 +216,80 @@ que les ids listés dans sa variable `ALLOWED_WEBHOOK_IDS`.
 ## Héberger
 
 Une console en ligne, allumée en permanence, ouverte depuis un navigateur sur PC ou
-téléphone : `https://cc.<ton-domaine>`. Un conteneur Docker pour le CC, un pour Caddy (HTTPS
-automatique). Il faut un petit serveur Linux avec Docker (1 vCPU et 1 Go de RAM suffisent) et
-un nom de domaine.
+téléphone : `https://cc.<ton-domaine>`. Sur le serveur, deux conteneurs : le CC, et Caddy
+devant lui pour le HTTPS automatique.
 
-1. **DNS** : un enregistrement `A` (et `AAAA` si IPv6) de `cc.<ton-domaine>` vers l'IP du
-   serveur. Caddy en a besoin pour obtenir le certificat au premier démarrage.
-2. **Application Discord** (Developer Portal, la même que celle du bot) > OAuth2 : copier
-   *Client ID* et *Client Secret* ; dans *Redirects*, ajouter exactement
-   `https://cc.<ton-domaine>/auth/callback`. Seul le scope `identify` est demandé.
-3. **Ton identifiant Discord** : Paramètres > Avancés > Mode développeur, puis clic droit sur
-   ton nom > *Copier l'identifiant*.
-4. **Sur le serveur** :
-   ```bash
-   git clone https://github.com/AdamGuemil/command-center.git && cd command-center
-   cp .env.example .env    # remplir : clés Roblox et Discord, puis la partie « Heberge »
-   docker compose up -d --build
-   ```
-   Le `.env` doit contenir au minimum `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`,
-   `CC_PUBLIC_URL=https://cc.<ton-domaine>`, `CC_DOMAIN=cc.<ton-domaine>` et `CC_ADMINS`.
-   Sans eux, le CC **refuse de démarrer** plutôt que de s'exposer sans connexion.
-   Pour le bot dans le même processus : `CC_BOT=1` et `data/bot_data.json` copié dans le
-   volume (`docker compose cp bot_data.json cc:/app/data/`).
-5. **Clé Open Cloud** : restreindre *Accepted IP Addresses* à l'IP du serveur.
-6. **Webhooks Roblox** (Creator Hub, profil du groupe > Webhooks) : URL
-   `https://cc.<ton-domaine>/webhooks/roblox`, un secret long et aléatoire recopié dans
-   `ROBLOX_WEBHOOK_SECRET`, déclencheurs *Transaction Refunded*, *Subscription* et *Right to
-   Erasure*. Le bouton *Test Response* doit faire apparaître la carte « Webhook Roblox reçu ».
-7. **Sonde de disponibilité** : un service gratuit (UptimeRobot, Better Stack...) qui appelle
-   `https://cc.<ton-domaine>/healthz` toutes les 5 minutes et prévient par mail ou Discord.
-   `/healthz` est public et ne dit rien de sensible (état de la base, version, dernière
-   sauvegarde).
+**Choix retenu (D2) : le serveur gratuit d'Oracle Cloud** (« Always Free »). C'est un vrai
+serveur Linux allumé en permanence, gratuit sans limite de durée, avec une IP fixe (la clé Open
+Cloud n'accepte qu'elle) et un disque pour `cc.db`. Guide pas à pas, sans prérequis technique :
+**[HEBERGEMENT_ORACLE.md](HEBERGEMENT_ORACLE.md)**. Pour un VPS payant, la même procédure
+s'applique à partir de l'étape 6 du guide.
 
-**Rôles** : `CC_ADMINS` (tout), `CC_MODS` (lire, message aux joueurs, kick, reporter une carte),
-`CC_VIEWERS` (lecture). Le rôle est relu à chaque requête : retirer un identifiant du `.env`
-et relancer (`docker compose up -d`) coupe l'accès, sessions ouvertes comprises. Un compte
-inconnu qui tente de se connecter voit son identifiant, à te transmettre.
+La suite décrit le fonctionnement en détail.
 
-**Mises à jour** : `git pull && docker compose up -d --build`. La CI publie aussi l'image de
-chaque commit vert de `main` sur `ghcr.io/adamguemil/command-center` ; le déploiement
-automatique viendra avec le choix de l'hébergeur.
+### Mise en route (une fois)
 
-**Sauvegardes** : une copie de `cc.db` par jour dans le volume (`data/backups`, 14 gardées).
-Elles restent sur le serveur : pour une copie ailleurs,
-`docker compose cp cc:/app/data/backups ./backups` depuis une autre machine, ou la sauvegarde
-automatique de l'hébergeur.
+Le pas-à-pas complet est dans [HEBERGEMENT_ORACLE.md](HEBERGEMENT_ORACLE.md). En résumé :
+
+1. **Serveur** Ubuntu 24.04, ports 80 et 443 ouverts chez l'hébergeur, ta clé SSH installée.
+2. `curl -fsSL https://raw.githubusercontent.com/AdamGuemil/command-center/main/deploy/setup-server.sh | sudo bash`
+   installe Docker, le pare-feu (22, 80, 443), les mises à jour de sécurité automatiques et
+   l'utilisateur `deploy`. Il clone le dépôt dans `/opt/shroud-cc`. Sur les images Oracle,
+   il retire aussi la règle iptables qui bloque tout sauf SSH.
+3. Depuis le PC : `scp .env ubuntu@<ip>:/tmp/cc.env` et `scp -r data ubuntu@<ip>:/tmp/cc-data`
+   (facultatif, évite de tout retaper et garde journal, notifications et config du bot).
+4. `sudo bash /opt/shroud-cc/deploy/configure.sh` :
+   - reprend le `.env` du PC, propose l'adresse `<ip>.sslip.io` (ou ton domaine) ;
+   - demande le *Client ID* et le *Secret* OAuth Discord, puis ton identifiant Discord ;
+   - génère le secret des webhooks Roblox, construit et démarre la console, reprend les
+     données du PC ;
+   - crée la clé de déploiement et affiche tout ce qu'il reste à coller (Creator Hub,
+     GitHub).
+5. Dans le Discord Developer Portal, *OAuth2* > *Redirects* : `https://<adresse>/auth/callback`.
+6. Creator Hub : la clé Open Cloud n'accepte plus que `<ip>/32`. Webhooks créés vers
+   `https://<adresse>/webhooks/roblox`.
+7. Sonde de disponibilité (facultatif) : UptimeRobot ou Better Stack sur `https://<adresse>/healthz`.
+
+Sans connexion Discord configurée, le CC **refuse de démarrer** exposé. Pour changer un
+réglage : `sudo nano /opt/shroud-cc/.env`, puis `sudo -u deploy docker compose up -d` dans
+`/opt/shroud-cc`.
+
+**Une seule console active.** Une fois le CC en ligne, mets `CC_BOT=0` et `CC_WATCH=0` dans
+le `.env` de ton PC. Sinon, deux bots répondent et les alertes arrivent en double. Le CC du PC
+reste utile pour l'Arsenal et pour essayer une modification.
+
+### Mises à jour automatiques
+
+Chaque push sur `main` déroule la même chaîne :
+1. la CI teste, puis publie l'image (amd64 et arm64) sur `ghcr.io/adamguemil/command-center` ;
+2. le job `deploy` se connecte en SSH comme `deploy@serveur` ;
+3. la clé n'autorise qu'une commande forcée, `deploy/deploy.sh` ;
+4. le script fait `git pull`, tire l'image, relance le CC et attend `/healthz`. Si le CC ne
+   répond pas, il remet l'image précédente et la CI passe en rouge.
+
+Mise en place, une fois :
+1. Rendre l'image publique : GitHub > *Packages* > `command-center` > *Package settings* >
+   *Change visibility* > *Public*. L'image ne contient aucun secret.
+2. Recopier dans le dépôt (*Settings* > *Secrets and variables* > *Actions*) les trois valeurs
+   affichées par `configure.sh` :
+   - variable `DEPLOY_HOST` ;
+   - secrets `DEPLOY_KNOWN_HOSTS` et `DEPLOY_SSH_KEY`.
+
+Tant que `DEPLOY_HOST` n'existe pas, le job `deploy` est sauté. À la main, sur le serveur :
+`sudo -u deploy bash /opt/shroud-cc/deploy/deploy.sh`.
+
+### Rôles et sauvegardes
+
+**Rôles** : `CC_ADMINS` peut tout faire. `CC_MODS` peut lire, envoyer un message aux joueurs,
+kicker et reporter une carte. `CC_VIEWERS` peut seulement lire. Le rôle est relu à chaque
+requête : retirer un identifiant du `.env` puis lancer `docker compose up -d` coupe l'accès,
+sessions ouvertes comprises. Un compte inconnu qui tente de se connecter voit son identifiant
+s'afficher, à te transmettre.
+
+**Sauvegardes** : une copie de `cc.db` par jour dans le volume (`data/backups`), les 14
+dernières sont gardées. Pour une copie hors du serveur, depuis ton PC :
+`scp -r root@<ip>:/var/lib/docker/volumes/shroud-cc_cc-data/_data/backups .`, ou la
+sauvegarde automatique du VPS chez l'hébergeur (option payante, quelques centimes).
 
 ---
 

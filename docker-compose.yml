@@ -1,14 +1,15 @@
 # Hebergement : le Command Center derriere Caddy (HTTPS automatique).
 #   1. DNS : un enregistrement A (et AAAA) de CC_DOMAIN vers l'IP du serveur ;
 #   2. .env rempli (voir .env.example, partie « Heberge ») ;
-#   3. docker compose up -d --build
+#   3. docker compose up -d --build   (premiere fois ; ensuite deploy/deploy.sh tire l'image testee)
 # Le CC n'est joignable QUE par Caddy (pas de port publie) ; ses donnees vivent dans le
 # volume cc-data (base, sauvegardes quotidiennes), qui survit aux mises a jour.
 # Sur ton PC, pas besoin de Docker : python server.py.
 services:
   cc:
     build: .
-    image: shroud-cc
+    # Image publiee par la CI a chaque commit vert de main ; « --build » la reconstruit sur place.
+    image: ${CC_IMAGE:-ghcr.io/adamguemil/command-center:latest}
     restart: unless-stopped
     env_file: .env
     environment:

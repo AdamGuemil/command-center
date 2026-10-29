@@ -248,6 +248,14 @@ serveur sur Live.
 | `data/arsenal.json` | Armes et tenues (écran Arsenal) | Oui |
 | `data/backups/cc-AAAA-MM-JJ.db` | Copie quotidienne de `cc.db` (API de sauvegarde SQLite), 14 gardées | Non |
 
+## 7 bis. Livraison
+
+| Étape | Où | Garde-fou |
+|---|---|---|
+| Tests | GitHub Actions : ruff, mypy, pytest (3.11 à 3.13), navigateur, image Docker démarrée en mode hébergé | Un job rouge arrête tout |
+| Publication | Image `ghcr.io/adamguemil/command-center:latest` et `:<commit>` | Seulement sur `main`, après les tests |
+| Déploiement | SSH vers `deploy@serveur`, clé limitée à `deploy/deploy.sh` (commande forcée) | Sauté sans `DEPLOY_HOST` ; `/healthz` attendu 60 s, sinon retour à l'image précédente et job rouge |
+
 ## 8. Secrets : où vit chacun
 
 | Secret | Où | Qui le lit |
@@ -259,6 +267,7 @@ serveur sur Live.
 | Liste des webhooks autorisés | Variable `ALLOWED_WEBHOOK_IDS` du Worker | Worker Cloudflare |
 | Client secret OAuth Discord | `.env` du CC (`DISCORD_CLIENT_SECRET`) | Le CC, à l'échange du code de connexion |
 | Secret des webhooks Roblox | Creator Hub (webhook) et `.env` du CC (`ROBLOX_WEBHOOK_SECRET`) | Roblox pour signer, le CC pour vérifier |
+| Clé SSH de déploiement | Secret GitHub `DEPLOY_SSH_KEY` ; clé publique dans `authorized_keys` de `deploy`, commande forcée | GitHub Actions, pour lancer `deploy/deploy.sh` seulement |
 | Jetons de session | Cookie `__Host-cc` du navigateur ; empreinte SHA-256 dans `cc.db` | Le CC |
 
 ## 9. Pipelines prévus
@@ -266,4 +275,4 @@ serveur sur Live.
 | Lot | Pipeline | Sens |
 |---|---|---|
 | Plus tard | `match_end` (historique des matchs) et `receipt_fail` (achats à vérifier) sur le bus ; fin propre d'un match en cours (`end_match`) | Jeu vers CC, CC vers jeu |
-| Hébergement | Déploiement automatique : la CI publie l'image sur `ghcr.io` ; le serveur la tire après chaque commit vert de `main` | GitHub vers serveur |
+| Plus tard | Copie des sauvegardes hors du serveur (stockage objet) | Serveur vers stockage |

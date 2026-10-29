@@ -118,3 +118,24 @@ be automated; erasure, bans, wipes, restarts and item removal are not in any rul
 **Consequences.** A slow Open Cloud or Discord call can never make Roblox drop the webhook,
 and every automatic action has the same audit trail and idempotence keys as a manual one.
 The loop's granularity is a minute, which is enough for announcements.
+
+## ADR 7: one Linux server (Oracle Cloud free tier), Caddy, deploys over a forced-command key
+
+**Context.** Hosted, the console needs a fixed outbound IP (the Open Cloud key should accept
+only that address), a persistent disk for SQLite, and an always-on process (watcher, bot,
+automation loop). Budget is a few euros a month and there is one operator doing admin.
+
+**Decision.** One small Ubuntu VPS running two containers: the console and Caddy (automatic
+Let's Encrypt). `deploy/setup-server.sh` prepares a fresh machine (Docker, firewall,
+unattended upgrades, a `deploy` user). CI publishes the tested image to GHCR, then SSHes in
+with a key whose `authorized_keys` entry forces `deploy/deploy.sh`: pull, restart, wait for
+`/healthz`, roll back to the previous image otherwise.
+
+**Consequences.** The key can restrict Open Cloud to one IP, and the server runs the exact
+image CI tested. A leaked deploy key can only trigger a deploy of what is already on `main`.
+PaaS platforms would remove the server admin but egress from shared, changing IPs, leaving
+the most powerful secret usable from anywhere; that trade was not worth it here. The server
+chosen is Oracle Cloud's Always Free VM (Ampere or AMD micro): free, fixed IP, real disk. Its
+catches are a card check at sign-up and possible reclamation of idle instances (Oracle warns
+first; the uptime probe would notice). The image is published for amd64 and arm64, and without
+a domain the console lives on `<ip>.sslip.io`, which resolves to the server by construction.
