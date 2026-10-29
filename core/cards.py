@@ -12,8 +12,13 @@ Chaque carte porte une CLE D'IDEMPOTENCE (`fw_result:w7`) :
   * « Fait », « Plus tard » et « Ignorer » sont gardes par cle (table cards) ;
   * une carte disparait aussi d'elle-meme quand sa condition n'est plus vraie.
 
-Rien ne part sans clic : une publication passe toujours par un apercu (§4.2 du plan).
-Les automatisations (§6.7) viendront avec l'hebergement 24/7 (lot 6).
+Rien ne part sans clic par defaut : une publication passe par un apercu (§4.2 du plan).
+Une regle d'automatisation (core/automations.py, ecran Automatisations) peut faire partir
+les publications et notifications d'une carte toute seule ; les actions destructrices
+(effacement, retrait, wipe, ban) ne sont jamais automatisables.
+
+Webhooks Roblox (core/webhooks.py) : remboursement, abonnement resilie ou rembourse, droit a
+l'effacement (echeance 30 jours) et test du Creator Hub deviennent des cartes.
 """
 
 from __future__ import annotations
@@ -23,12 +28,14 @@ import threading
 import time
 from datetime import datetime
 
-from . import db, discord_api, live, modes, notify, ranked_rewards, roblox_api, store, todo
+from . import db, discord_api, live, modes, notify, ranked_rewards, roblox_api, store, todo, webhooks
 from . import events as game_events
 
 CACHE_S = 30
 RECENT_S = 7 * 86400
 RANKED_LATE_S = 30 * 60
+WEBHOOK_KEEP_S = 60 * 86400
+ERASURE_DEADLINE_S = 30 * 86400
 PRIO_ORDER = {"crit": 0, "high": 1, "normal": 2, "info": 3}
 
 _lock = threading.Lock()
@@ -70,6 +77,7 @@ def collect(force: bool = False) -> dict:
     templates, _ = _safe(store.load_templates, [])
     recent, _ = _safe(lambda: db.events(tuple(game_events.TYPES), since=now - RECENT_S, limit=300), [])
     notif, _ = _safe(notify.readiness, {"ids": [], "done": [], "lastComeback": 0})
+    rbx, _ = _safe(lambda: db.events(webhooks.TYPES, since=now - WEBHOOK_KEEP_S, limit=300), [])
 
     state = {
         "now": now,
@@ -83,7 +91,7 @@ def collect(force: bool = False) -> dict:
         "operations": (mode_values or {}).get("operations") or {},
         "todo": todo_items or [], "schedule": schedule or [],
         "templates": {t["id"]: t.get("name") or t["id"] for t in templates or []},
-        "events": recent or [],
+        "events": recent or [], "rbx": rbx or [],
         "notify": notif or {"ids": [], "done": [], "lastComeback": 0},
     }
     with _lock:
@@ -254,21 +262,27 @@ def build(s: dict, now: int) -> list[dict]:
                                "joueur ; les joueurs déjà notifiés aujourd'hui sont sautés.", [act],
                                closeWhenDone=True))
 
-    # Evenements du jeu
+    # Evenements du jeu, puis webhooks Roblox
     cards += _event_cards(s["events"], now)
+    cards += _webhook_cards(s.get("rbx") or [], now)
 
     # Planificateur
     for item in s["schedule"]:
         try:
-            at = int(datetime.fromisoformat(str(item.get("at"))).timestamp())
+            parsed = datetime.fromisoformat(str(item.get("at")))
+            # Heure saisie dans le Planificateur = heure de Paris, quel que soit le fuseau du serveur.
+            at = int((parsed if parsed.tzinfo else parsed.replace(tzinfo=roblox_api.FW_TIMEZONE)).timestamp())
         except (TypeError, ValueError):
             continue
         if item.get("done") or at > now:
             continue
         name = s["templates"].get(item.get("templateId"), item.get("templateId") or "modèle")
+        acts = [go("Ouvrir le planificateur", "#schedule")]
+        if item.get("templateId") in s["templates"]:
+            acts.insert(0, publish("Publier maintenant", item["templateId"]))
         cards.append(_card(f"schedule:{item.get('id') or item.get('at')}", "normal", "Diffusion",
-                           f"Annonce prévue : {name}", f"Prévue le {_fmt_when(at)}.",
-                           [go("Ouvrir le planificateur", "#schedule")], at=at))
+                           f"Annonce prévue : {name}", f"Prévue le {_fmt_when(at)}.", acts, at=at,
+                           closeWhenDone=True))
 
     # Taches manuelles (Reste a faire)
     for t in s["todo"]:
@@ -327,6 +341,52 @@ def _event_cards(evts: list[dict], now: int) -> list[dict]:
     return out
 
 
+def _who(uid) -> str:
+    return f"joueur {uid}" if uid else "joueur inconnu"
+
+
+def _webhook_cards(evts: list[dict], now: int) -> list[dict]:
+    out = []
+    for e in evts:
+        d = e.get("data") or {}
+        nid, uid, t = d.get("notificationId") or e["id"], d.get("userId"), e["type"]
+        sheet = [go("Ouvrir la fiche", f"#players/{uid}")] if uid else []
+        if t == "rbx_erasure":
+            if d.get("erasedAt"):
+                continue
+            due = e["at"] + ERASURE_DEADLINE_S
+            games = ", ".join(map(str, d.get("gameIds") or [])) or "?"
+            out.append(_card(
+                f"rtbf:{nid}", "crit" if due - now < 7 * 86400 else "high", "Conformité",
+                f"Droit à l'effacement : {_who(uid)}",
+                f"Roblox demande d'effacer les données de ce joueur (expériences {games}). "
+                f"À faire avant le {_fmt_when(due)}. Jamais automatique : aperçu, puis confirmation.",
+                [{"id": "erase", "kind": "erase", "label": "Effacer les données…", "userId": uid}] if uid else [],
+                at=e["at"], due=due, userId=uid, noDismiss=True))
+        elif t == "rbx_refund" and now - e["at"] <= RECENT_S * 2:
+            what = " ".join(str(x) for x in (d.get("productType"), d.get("productId")) if x) or "achat"
+            robux = f", {d['robux']} Robux" if d.get("robux") else ""
+            out.append(_card(
+                f"refund:{nid}", "high", "Boutique", f"Remboursement : {what}",
+                f"{_who(uid).capitalize()}{robux}. Roblox retire lui-même les passes ; pour un produit "
+                "développeur, l'or ou l'objet livré reste au joueur : retire-le depuis sa fiche.",
+                sheet, at=e["at"], userId=uid, raw=d.get("payload")))
+        elif t == "rbx_subscription" and d.get("state") in ("refunded", "cancelled") and now - e["at"] <= RECENT_S:
+            refunded = d["state"] == "refunded"
+            reason = f" Motif : {d['reason']}." if d.get("reason") else ""
+            out.append(_card(
+                f"sub_{d['state']}:{nid}", "high" if refunded else "info", "Boutique",
+                f"Abonnement {'remboursé' if refunded else 'résilié'} : {_who(uid)}",
+                (("Les avantages déjà livrés restent au joueur : vérifie sa fiche." if refunded else
+                  "L'abonnement court jusqu'à la fin de la période payée.") + reason),
+                sheet, at=e["at"], userId=uid, raw=d.get("payload")))
+        elif t == "rbx_sample" and now - e["at"] <= 86400:
+            out.append(_card(f"rbx_test:{nid}", "info", "Système", "Webhook Roblox reçu (test du Creator Hub)",
+                             "La signature est valide : les remboursements, abonnements et demandes d'effacement "
+                             "arriveront ici.", [], at=e["at"]))
+    return out
+
+
 # VUE (etat des cartes applique) ---------------------------------------------
 def overview(force: bool = False) -> dict:
     s = collect(force)
@@ -352,6 +412,8 @@ def overview(force: bool = False) -> dict:
             continue
         visible.append(c)
     visible.sort(key=lambda c: (PRIO_ORDER.get(c["prio"], 9), -(c.get("at") or c.get("due") or 0)))
+    from . import automations  # import tardif : automations lit l'Accueil
+    automations.annotate(visible, now)
     waiting = [c for c in visible if c["prio"] == "waiting"]
     active = [c for c in visible if c["prio"] != "waiting"]
     return {"cards": active, "waiting": waiting, "snoozed": snoozed, "at": now,
@@ -360,6 +422,8 @@ def overview(force: bool = False) -> dict:
 
 
 def set_state(key: str, state: str, until: int | None = None) -> dict:
+    if key.startswith("rtbf:") and state in ("done", "dismissed"):
+        raise ValueError("Une demande d'effacement se ferme en effaçant les données, pas en l'ignorant.")
     db.set_card(key, state, until)
     title = next((c["title"] for c in build(collect(), int(time.time())) if c["key"] == key), key)
     db.audit("card_state", key, {"state": state, "until": until, "title": title}, True, key)

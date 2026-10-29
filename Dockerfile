@@ -1,4 +1,6 @@
-# Command Center : un seul processus (FastAPI + uvicorn, et le bot Discord si CC_BOT=1).
+# Command Center : un seul processus (FastAPI + uvicorn, automatisations, et le bot Discord si CC_BOT=1).
+# Expose, il exige la connexion Discord (DISCORD_CLIENT_ID/SECRET, CC_PUBLIC_URL, CC_ADMINS) :
+# sans elle, il refuse de demarrer. Voir docker-compose.yml et docs/OPERATIONS.md « Héberger ».
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -16,6 +18,6 @@ USER cc
 
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/', timeout=4)"
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/healthz', timeout=4)"
 
 CMD ["python", "server.py"]

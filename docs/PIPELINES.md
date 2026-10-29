@@ -13,11 +13,12 @@ rythme, ce que ça coûte et ce qui se passe quand un maillon tombe.
 | **Jeu, place HUB** | Lobby, file d'attente, boutique. `HUB` fait foi pour les fichiers jumeaux | Serveurs Roblox |
 | **Jeu, place MATCH** | Serveurs de match (DUALS, DOMINATION, EXFIL, OPERATIONS), privés | Serveurs Roblox |
 | **Open Cloud** | API HTTP de Roblox : DataStores, MemoryStore, MessagingService, Analytics, bans, notifications | Roblox |
-| **Command Center** | `server.py` (API JSON, secrets, veilleur) et `web/` (interface, sans secret) | Ton PC (plus tard : cloud, lot 6) |
+| **Command Center** | `server.py` / `app.py` (API JSON, secrets, veilleur, automatisations, sauvegardes) et `web/` (interface, sans secret) | Ton PC (mode local, sans connexion) ou un serveur (Docker derrière Caddy, connexion Discord) |
+| **Caddy** | Proxy HTTPS : certificat Let's Encrypt automatique, transmet au CC | Le même serveur, conteneur voisin |
 | **Worker Cloudflare** | Relais des webhooks Discord du jeu, car Discord refuse les requêtes venues de Roblox | Cloudflare |
 | **Discord** | Salons d'annonces, `#ops-log` (audit et alertes), salons du « GAME FEED » | Discord |
-| **Bot runtime** (`bot.py`) | Tickets, journaux, rôles, liaison Roblox (`/link`), synchronisation des rôles | À lancer à part |
-| **Navigateur** | Interface du CC ; reçoit les notifications système si tu les autorises | Ton PC |
+| **Bot Discord** (`core/bot.py`) | Tickets, journaux, rôles, liaison Roblox (`/link`), synchronisation des rôles | Dans le processus du CC (`CC_BOT=1`), ou seul (`python bot.py`) |
+| **Navigateur** | Interface du CC ; reçoit les notifications système si tu les autorises | PC ou téléphone |
 
 ```mermaid
 flowchart TB
@@ -29,6 +30,7 @@ flowchart TB
   W["Worker Cloudflare"]
   DSC["Discord"]
   J["Joueurs hors du jeu<br/>site et appli Roblox"]
+  WH["Webhooks Roblox<br/>remboursements, abonnements, RTBF"]
   G <-- "état, événements, profils / réglages, dons" --> OC
   G -- "feed du jeu" --> W
   OC <-- "clé Open Cloud" --> CC
@@ -38,6 +40,7 @@ flowchart TB
   CC -- "annonces, audit" --> DSC
   AN -- "alertes" --> DSC
   OC -- "notifications" --> J
+  WH -- "HTTPS signé HMAC" --> CC
 ```
 
 ## 1. Jeu vers Command Center (lecture)
@@ -64,6 +67,29 @@ endpoint public n'est exposé.
 | **Accueil** (Accueil) | État du jeu (saison, archive, versement ranked, boost, modes, versions), événements du jeu, planificateur, tâches manuelles, santé du CC | Lectures Open Cloud et base locale | Cartes « À faire » triées par priorité, pastille, notice pour une nouvelle carte importante | À l'ouverture et toutes les 2 min, calcul gardé 30 s | Chaque source échoue seule ; une source absente ne fait pas de carte | `core/cards.py`, `web/js/home.js` |
 | **Tâches manuelles** (Accueil, `#todo`) | Analytics `DailyActiveUsers` sur 7 jours, visites publiques, Asset IDs enregistrés, état du veilleur, coches locales | Analytics Query API, `games.roblox.com`, `data/todo_state.json` | Cartes « Configuration » de l'Accueil, ou « En attente » | Vérifié toutes les 30 min | Tâche affichée « à faire » avec l'erreur | `core/todo.py` |
 | **Index d'activité** (audiences des notifications) | `NotificationServer` au Hub, à chaque arrivée d'un joueur | OrderedDataStore `CC_LastSeen`, clé = userId, valeur = heure Unix de la dernière arrivée | `notify.read_seen()` : filtre par plage d'heures (`entry >= a && entry <= b`), 100 par page | Écrit au plus une fois par heure et par joueur sur un serveur ; lu à l'aperçu d'une notification | Index vide (Hub pas encore publié) : audience vide avec une note ; droit Ordered Data Stores absent : erreur dans l'aperçu | `HUB/ServerScriptService/Core/NotificationServer.server.luau`, `core/notify.py` |
+
+## 1 bis. Roblox vers Command Center : webhooks
+
+Le seul flux qui entre de l'extérieur, d'où la console hébergée. Roblox appelle
+`POST /webhooks/roblox` ; le CC vérifie, stocke, répond en moins de 5 s. Les actions viennent
+ensuite, au clic, depuis l'Accueil.
+
+| Événement | Vérification | Stockage | Devient |
+|---|---|---|---|
+| *Transaction Refunded* | `roblox-signature` : `t=…,v1=…`, base64(HMAC-SHA256(secret, `t.corps`)), comparaison en temps constant ; horodatage à ±5 min ; corps ≤ 64 Ko | `events` de `cc.db`, id `rbx:<NotificationId>` (un doublon est ignoré), journal (auteur « webhook ») | carte « Remboursement » (fiche du joueur, à retirer à la main pour un produit développeur) |
+| *Subscription* résilié / remboursé | idem | idem | carte d'information (résilié) ou importante (remboursé) ; achat et renouvellement : journal seulement |
+| *Right to Erasure* | idem | idem ; après effacement, l'événement perd l'identifiant du joueur | carte bloquante à 7 jours de l'échéance (30 jours), jamais ignorable ; « Effacer » : aperçu de chaque entrée, confirmation par l'identifiant tapé |
+| *SampleNotification* (test du Creator Hub) | idem | idem | carte « Webhook Roblox reçu » pendant 24 h |
+
+En panne : Roblox réessaie 5 fois puis invalide l'URL (à recoller dans le Creator Hub). Sans
+`ROBLOX_WEBHOOK_SECRET`, la route répond 404 : rien n'est accepté sans signature.
+
+**Effacement (RTBF)** : entrées supprimées dans les DataStores joueurs (profil, compétences,
+inventaire, stash, sanctions, extraction, dettes du marché noir, pièges) et les
+OrderedDataStores qui indexent le joueur (ranked, index des pièges, activité, classements
+Faction War de chaque semaine). En base locale : liaisons Discord, copies d'édition, registre
+des notifications, événements du jeu ; les lignes du journal qui le visent sont anonymisées.
+Non couvert : annonces du marché noir (indexées par annonce).
 
 ## 2. Command Center vers le jeu (écriture)
 
@@ -132,6 +158,15 @@ Trois émetteurs indépendants, avec trois identités différentes.
 Le Worker Cloudflare ne relaie que les POST vers `/api/webhooks/<id>/<token>` dont l'id
 figure dans `ALLOWED_WEBHOOK_IDS`, avec un corps de 16 Ko au plus
 ([`cloudflare/webhook-proxy.js`](cloudflare/webhook-proxy.js)).
+
+### Automatisations
+
+Une carte de l'Accueil dont la règle est en « avec délai » ou « immédiat » publie seule ses
+actions cochées, par le même chemin que le clic (aperçu identique, journal avec l'auteur
+« automatique »). Passage toutes les 60 s ; heure de départ fixée à la première apparition
+de la carte (délai 0 à 120 min), retardée pendant les heures calmes ; une campagne de
+notifications à la fois. Un échec n'est pas retenté : la carte le repropose à la main et
+`#ops-log` est prévenu. Jamais automatiques : wipe, ban, redémarrage, effacement, retrait.
 
 ## 4. Surveillance et alertes
 
@@ -204,13 +239,14 @@ serveur sur Live.
 | `data/templates.json` | Modèles d'annonces (partagés avec `announce.py`) | Oui |
 | `data/settings.json` | Réglages d'affichage, barème ranked local | Oui |
 | `data/schedule.json` | Annonces planifiées | Non |
-| `data/cc.db` | Base SQLite : événements du jeu (90 jours), journal d'audit (5 000 lignes), état des cartes, commandes, copies avant modification, notifications (registre du jour sur 60 jours, campagnes) | Non |
+| `data/cc.db` | Base SQLite : événements du jeu (90 jours), journal d'audit (5 000 lignes), état des cartes, commandes, copies avant modification, notifications (registre du jour sur 60 jours, campagnes), webhooks Roblox reçus, sessions (empreinte du jeton seulement), réglages et exécutions des automatisations | Non |
 | `data/notifications.json` | Asset IDs des textes du Creator Hub, compte de test | Non |
 | `data/history.json` | Ancien historique des envois, importé une fois dans `cc.db`, plus écrit | Non |
 | `data/live_events.json` | Journal du veilleur (300 événements) | Non |
 | `data/live_timeline.json` | Joueurs par minute sur 24 h | Non |
 | `data/todo_state.json` | Tâches cochées à la main | Non |
 | `data/arsenal.json` | Armes et tenues (écran Arsenal) | Oui |
+| `data/backups/cc-AAAA-MM-JJ.db` | Copie quotidienne de `cc.db` (API de sauvegarde SQLite), 14 gardées | Non |
 
 ## 8. Secrets : où vit chacun
 
@@ -221,10 +257,13 @@ serveur sur Live.
 | Webhooks du jeu (`<id>/<token>`) | Secrets Store de l'expérience, restreints au domaine du Worker | `DiscordFeed` via `HttpService:GetSecret` |
 | Webhook « Custom alerts » | Creator Hub | Roblox |
 | Liste des webhooks autorisés | Variable `ALLOWED_WEBHOOK_IDS` du Worker | Worker Cloudflare |
+| Client secret OAuth Discord | `.env` du CC (`DISCORD_CLIENT_SECRET`) | Le CC, à l'échange du code de connexion |
+| Secret des webhooks Roblox | Creator Hub (webhook) et `.env` du CC (`ROBLOX_WEBHOOK_SECRET`) | Roblox pour signer, le CC pour vérifier |
+| Jetons de session | Cookie `__Host-cc` du navigateur ; empreinte SHA-256 dans `cc.db` | Le CC |
 
 ## 9. Pipelines prévus
 
 | Lot | Pipeline | Sens |
 |---|---|---|
 | Plus tard | `match_end` (historique des matchs) et `receipt_fail` (achats à vérifier) sur le bus ; fin propre d'un match en cours (`end_match`) | Jeu vers CC, CC vers jeu |
-| 6 | Hébergement cloud, connexion Discord OAuth, réception des webhooks Roblox (remboursements, abonnements, RTBF), automatisations | Roblox vers CC |
+| Hébergement | Déploiement automatique : la CI publie l'image sur `ghcr.io` ; le serveur la tire après chaque commit vert de `main` | GitHub vers serveur |

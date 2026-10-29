@@ -408,8 +408,13 @@ const JOURNAL_LABELS = {
   ranked_pay: "Ranked", configs: "Configs live", maintenance_purge: "Purge des stash",
   settings: "Réglages", templates: "Modèles", schedule: "Planificateur", arsenal: "Arsenal",
   faction_announce: "Annonce aux factions", announce: "Annonce",
+  login: "Connexion", login_denied: "Connexion refusée", webhook: "Webhook Roblox", erasure: "Effacement RTBF",
+  automation: "Automatisation : réglage", automation_cancel: "Automatisation annulée", auto_failed: "Automatisation en échec",
+  ban: "Ban", unban: "Débannissement", ban_wave: "Vague de bans", restart: "Redémarrage",
 };
-const JOURNAL_FILTERS = [["", "Tout"], ["discord_send", "Envois Discord"], ["game", "Écritures dans le jeu"], ["card", "Cartes"]];
+const JOURNAL_FILTERS = [["", "Tout"], ["discord_send", "Envois Discord"], ["game", "Écritures dans le jeu"], ["card", "Cartes"], ["access", "Accès"]];
+const ACCESS_ACTIONS = new Set(["login", "login_denied", "automation", "automation_cancel"]);
+const actorLabel = (a) => (!a || a === "local" ? "local" : a === "auto" ? "automatique" : a);
 const GAME_ACTIONS = new Set(["boost", "modes", "rewards", "give", "wipe", "ranked_pay", "configs", "maintenance_purge"]);
 
 function journalDetail(e) {
@@ -438,12 +443,14 @@ export async function viewHistory(root) {
       return b;
     }));
     const shown = rows.filter((e) => !filter || (filter === "game" ? GAME_ACTIONS.has(e.action)
-      : filter === "card" ? e.action.startsWith("card_") : e.action === filter));
+      : filter === "card" ? e.action.startsWith("card_") : filter === "access" ? ACCESS_ACTIONS.has(e.action)
+      : e.action === filter));
     mount(body, shown.length
       ? h("table", {}, [
-          h("thead", {}, h("tr", {}, ["Quand", "Action", "Cible", "Détail", "État"].map((x) => h("th", {}, x)))),
+          h("thead", {}, h("tr", {}, ["Quand", "Qui", "Action", "Cible", "Détail", "État"].map((x) => h("th", {}, x)))),
           h("tbody", {}, shown.map((e) => h("tr", {}, [
             h("td", { style: "white-space:nowrap" }, fmtDate(e.at)),
+            h("td", { class: "j-actor" }, actorLabel(e.actor)),
             h("td", {}, JOURNAL_LABELS[e.action] || e.action),
             h("td", {}, e.action === "discord_send" && e.target ? h("span", { class: "tag" }, `#${e.target}`)
               : e.action.startsWith("card_") ? h("a", { href: "#home" }, "Accueil") : (e.target || "—")),

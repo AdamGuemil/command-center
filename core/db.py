@@ -12,6 +12,12 @@ Tables :
             n'en delivre qu'une par jour et par experience ; ne pas gaspiller la suivante).
   campaigns envois de notifications : cle du catalogue, sujet (ref), progression, erreur.
   discord_links  liaison compte Discord <-> compte Roblox (bot : /link, /confirm, /sync).
+  sessions  connexions a la console hebergee (jeton hache, jamais le jeton lui-meme).
+  automations  reglage de chaque regle d'automatisation (mode, delai, sous-actions...).
+  auto_runs  execution automatique d'une action de carte : prevue, faite, annulee, en echec.
+
+Chaque ligne du journal porte l'auteur (`actor`) : le compte Discord connecte, « auto » pour
+une automatisation, « webhook » pour un evenement Roblox, « local » sans connexion.
 
 Une connexion par appel, sous verrou : le serveur HTTP et le veilleur ecrivent depuis des
 fils differents, et le volume est minuscule. Le fichier est local et non versionne.
@@ -19,6 +25,7 @@ fils differents, et le volume est minuscule. Le fichier est local et non version
 
 from __future__ import annotations
 
+import contextvars
 import json
 import sqlite3
 import threading
@@ -35,6 +42,9 @@ AUDIT_KEEP = 5000
 
 _lock = threading.RLock()
 _ready: set[str] = set()
+
+# Auteur des ecritures en cours (pose par app.py pour chaque requete, par les automatisations).
+ACTOR: contextvars.ContextVar[str] = contextvars.ContextVar("cc_actor", default="local")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
@@ -76,6 +86,19 @@ CREATE INDEX IF NOT EXISTS campaigns_key_ref ON campaigns(key, ref);
 CREATE TABLE IF NOT EXISTS discord_links (
   discord_id INTEGER PRIMARY KEY, roblox_id INTEGER NOT NULL, at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, name TEXT, avatar TEXT, csrf TEXT NOT NULL,
+  created INTEGER NOT NULL, seen INTEGER NOT NULL, expires INTEGER NOT NULL, ip TEXT, agent TEXT
+);
+CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+CREATE TABLE IF NOT EXISTS automations (
+  rule TEXT PRIMARY KEY, config TEXT NOT NULL, at INTEGER NOT NULL, actor TEXT
+);
+CREATE TABLE IF NOT EXISTS auto_runs (
+  card TEXT NOT NULL, action TEXT NOT NULL, rule TEXT NOT NULL, first_seen INTEGER NOT NULL,
+  due INTEGER NOT NULL, state TEXT NOT NULL, error TEXT, done_at INTEGER, by TEXT,
+  PRIMARY KEY (card, action)
+);
 """
 
 
@@ -93,12 +116,20 @@ def connect():
         try:
             if str(path) not in _ready:
                 con.executescript(SCHEMA)
+                _migrate_columns(con)
                 _migrate_history(con)
                 _ready.add(str(path))
             yield con
             con.commit()
         finally:
             con.close()
+
+
+def _migrate_columns(con) -> None:
+    """Colonnes ajoutees apres coup (CREATE TABLE IF NOT EXISTS ne touche pas une table existante)."""
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(audit)")}
+    if "actor" not in cols:
+        con.execute("ALTER TABLE audit ADD COLUMN actor TEXT")
 
 
 def _migrate_history(con) -> None:
@@ -150,11 +181,12 @@ def events(types: tuple[str, ...] | None = None, since: int = 0, limit: int = 20
 
 # JOURNAL D'AUDIT
 def audit(action: str, target: str = "", detail: dict | str | None = None, ok: bool = True,
-          card: str | None = None) -> None:
+          card: str | None = None, actor: str | None = None) -> None:
     text = detail if isinstance(detail, str) else json.dumps(detail or {}, ensure_ascii=False)
     with connect() as con:
-        con.execute("INSERT INTO audit(at, action, target, detail, ok, card) VALUES (?,?,?,?,?,?)",
-                    (int(time.time()), action, target[:200], text[:2000], 1 if ok else 0, card))
+        con.execute("INSERT INTO audit(at, action, target, detail, ok, card, actor) VALUES (?,?,?,?,?,?,?)",
+                    (int(time.time()), action, target[:200], text[:2000], 1 if ok else 0, card,
+                     (actor or ACTOR.get())[:80]))
         con.execute("DELETE FROM audit WHERE id <= (SELECT MAX(id) FROM audit) - ?", (AUDIT_KEEP,))
 
 
@@ -174,7 +206,7 @@ def audit_rows(limit: int = 200, action: str | None = None) -> list[dict]:
             except ValueError:
                 detail = r["detail"]
             out.append({"id": r["id"], "at": r["at"], "action": r["action"], "target": r["target"],
-                        "detail": detail, "ok": bool(r["ok"]), "card": r["card"]})
+                        "detail": detail, "ok": bool(r["ok"]), "card": r["card"], "actor": r["actor"]})
         return out
 
 
@@ -368,3 +400,147 @@ def links() -> list[tuple[int, int]]:
     with connect() as con:
         return [(int(r["discord_id"]), int(r["roblox_id"]))
                 for r in con.execute("SELECT discord_id, roblox_id FROM discord_links")]
+
+
+def links_for_roblox(roblox_id: int) -> list[int]:
+    with connect() as con:
+        return [int(r["discord_id"]) for r in con.execute(
+            "SELECT discord_id FROM discord_links WHERE roblox_id = ?", (int(roblox_id),))]
+
+
+# SESSIONS (console hebergee, core/auth.py)
+def add_session(sid_hash: str, user_id: int, name: str, avatar: str | None, csrf: str, ttl_s: int,
+                ip: str = "", agent: str = "") -> None:
+    now = int(time.time())
+    with connect() as con:
+        con.execute("INSERT INTO sessions(id, user_id, name, avatar, csrf, created, seen, expires, ip, agent) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (sid_hash, int(user_id), name[:80], avatar, csrf, now, now, now + ttl_s, ip[:64], agent[:200]))
+        con.execute("DELETE FROM sessions WHERE expires < ?", (now,))
+
+
+def get_session(sid_hash: str) -> dict | None:
+    with connect() as con:
+        r = con.execute("SELECT * FROM sessions WHERE id = ? AND expires >= ?",
+                        (sid_hash, int(time.time()))).fetchone()
+        return dict(r) if r else None
+
+
+def touch_session(sid_hash: str, ttl_s: int) -> None:
+    now = int(time.time())
+    with connect() as con:
+        con.execute("UPDATE sessions SET seen = ?, expires = ? WHERE id = ?", (now, now + ttl_s, sid_hash))
+
+
+def delete_session(sid_hash: str) -> None:
+    with connect() as con:
+        con.execute("DELETE FROM sessions WHERE id = ?", (sid_hash,))
+
+
+def delete_sessions_of(user_id: int) -> int:
+    with connect() as con:
+        return con.execute("DELETE FROM sessions WHERE user_id = ?", (int(user_id),)).rowcount
+
+
+def sessions_list() -> list[dict]:
+    with connect() as con:
+        return [{"userId": r["user_id"], "name": r["name"], "created": r["created"], "seen": r["seen"],
+                 "ip": r["ip"], "agent": r["agent"]}
+                for r in con.execute("SELECT * FROM sessions WHERE expires >= ? ORDER BY seen DESC",
+                                     (int(time.time()),))]
+
+
+# AUTOMATISATIONS (core/automations.py)
+def automation_configs() -> dict[str, dict]:
+    with connect() as con:
+        return {r["rule"]: {**json.loads(r["config"] or "{}"), "_at": r["at"], "_by": r["actor"]}
+                for r in con.execute("SELECT * FROM automations")}
+
+
+def set_automation(rule: str, cfg: dict) -> None:
+    with connect() as con:
+        con.execute("INSERT OR REPLACE INTO automations(rule, config, at, actor) VALUES (?,?,?,?)",
+                    (rule, json.dumps(cfg, ensure_ascii=False), int(time.time()), ACTOR.get()))
+
+
+def auto_runs(states: tuple[str, ...] | None = None) -> dict[tuple[str, str], dict]:
+    sql, args = "SELECT * FROM auto_runs", []
+    if states:
+        sql += f" WHERE state IN ({','.join('?' * len(states))})"
+        args = list(states)
+    with connect() as con:
+        return {(r["card"], r["action"]): dict(r) for r in con.execute(sql, args)}
+
+
+def plan_auto_run(card: str, action: str, rule: str, due: int) -> dict:
+    """Premiere vue d'une action automatisable : fixe son heure de depart (jamais repoussee)."""
+    now = int(time.time())
+    with connect() as con:
+        con.execute("INSERT OR IGNORE INTO auto_runs(card, action, rule, first_seen, due, state) VALUES (?,?,?,?,?,?)",
+                    (card, action, rule, now, due, "planned"))
+        con.execute("DELETE FROM auto_runs WHERE first_seen < ? AND state != 'planned'", (now - 60 * 86400,))
+        r = con.execute("SELECT * FROM auto_runs WHERE card = ? AND action = ?", (card, action)).fetchone()
+        return dict(r)
+
+
+def set_auto_run(card: str, action: str, state: str, error: str | None = None, by: str | None = None) -> None:
+    with connect() as con:
+        con.execute("UPDATE auto_runs SET state = ?, error = ?, done_at = ?, by = ? WHERE card = ? AND action = ?",
+                    (state, (error or None) and error[:300], int(time.time()), by, card, action))
+
+
+def cancel_planned_runs() -> int:
+    """Interrupteur « tout en manuel » : rien de ce qui etait prevu ne part."""
+    with connect() as con:
+        return con.execute("UPDATE auto_runs SET state = 'cancelled', done_at = ?, by = ? WHERE state = 'planned'",
+                           (int(time.time()), ACTOR.get())).rowcount
+
+
+# DROIT A L'EFFACEMENT : donnees du joueur gardees par le CC lui-meme
+def erase_local(user_id: int) -> dict:
+    uid = int(user_id)
+    with connect() as con:
+        out = {
+            "links": con.execute("DELETE FROM discord_links WHERE roblox_id = ?", (uid,)).rowcount,
+            "backups": con.execute("DELETE FROM backups WHERE user_id = ?", (uid,)).rowcount,
+            "notified": con.execute("DELETE FROM notified WHERE user_id = ?", (uid,)).rowcount,
+            "events": con.execute("DELETE FROM events WHERE type NOT LIKE 'rbx_%' AND "
+                                  "(json_extract(data, '$.u') = ? OR json_extract(data, '$.u') = ?)",
+                                  (uid, str(uid))).rowcount,
+            "audit": con.execute("UPDATE audit SET target = '[efface]', detail = '{}' WHERE target = ?",
+                                 (str(uid),)).rowcount,
+        }
+    return out
+
+
+# SAUVEGARDE
+def backup_to(dest: Path) -> int:
+    """Copie coherente de la base (API de sauvegarde SQLite), meme pendant des ecritures."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(".tmp")
+    with connect() as con:
+        target = sqlite3.connect(tmp)
+        try:
+            con.backup(target)
+        finally:
+            target.close()
+    tmp.replace(dest)
+    return dest.stat().st_size
+
+
+def ping() -> bool:
+    with connect() as con:
+        return con.execute("SELECT 1").fetchone()[0] == 1
+
+
+def scrub_rbx_event(notification_id: str, erased: bool) -> None:
+    """Apres effacement : la demande RTBF ne garde plus l'identifiant du joueur."""
+    with connect() as con:
+        r = con.execute("SELECT data FROM events WHERE id = ?", (f"rbx:{notification_id}",)).fetchone()
+        if not r:
+            return
+        data = json.loads(r["data"] or "{}")
+        if erased:
+            data.update(userId=None, payload={}, erasedAt=int(time.time()))
+        con.execute("UPDATE events SET data = ? WHERE id = ?",
+                    (json.dumps(data, ensure_ascii=False), f"rbx:{notification_id}"))

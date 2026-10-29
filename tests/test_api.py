@@ -5,15 +5,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app as cc_app
-from core import config, db, handlers, notify
+from core import auth, config, db, handlers, notify
+
+LOCAL = "http://127.0.0.1:8787"
 
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "WATCH", False)
     monkeypatch.setattr(config, "BOT", False)
+    monkeypatch.setattr(config, "JOBS", False)
     monkeypatch.setattr(notify, "CONFIG_FILE", tmp_path / "notifications.json")
-    with TestClient(cc_app.create_app()) as c:
+    # Mode local : Host 127.0.0.1 et jeton CSRF du processus, comme la vraie page.
+    with TestClient(cc_app.create_app(), base_url=LOCAL, headers={"x-cc-csrf": auth.LOCAL_CSRF}) as c:
         yield c
 
 

@@ -4,3 +4,5 @@ uvicorn>=0.32,<0.33
 # Bot Discord (CC_BOT=1 ou python bot.py) et tools/setup_discord.py
 discord.py>=2.4,<3
 aiohttp>=3.9,<4
+# Fuseau Europe/Paris meme sans base de fuseaux systeme (image Docker slim, Windows)
+tzdata>=2024.1

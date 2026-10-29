@@ -76,6 +76,33 @@ PORT = int(_get("CC_PORT", "8787") or 8787)
 OPEN_BROWSER = _get("CC_OPEN_BROWSER", "1") != "0"   # 0 dans un conteneur
 WATCH = _get("CC_WATCH", "1") != "0"                 # veilleur live (0 : tests)
 BOT = _get("CC_BOT") in ("1", "true", "yes")          # bot Discord dans le meme processus
+JOBS = _get("CC_JOBS", "1") != "0"                   # automatisations, sauvegardes (0 : tests)
+
+
+def _ids(name: str) -> frozenset[int]:
+    return frozenset(int(x) for x in re.split(r"[\s,;]+", _get(name)) if x.isdigit())
+
+
+# Acces heberge (lot 6) : connexion Discord OAuth2 et roles par identifiant Discord.
+# Sans DISCORD_CLIENT_ID / SECRET, le CC reste en mode local : pas de connexion, mais il
+# refuse alors d'ecouter ailleurs que sur 127.0.0.1 (voir core/auth.py).
+DISCORD_CLIENT_ID = _get("DISCORD_CLIENT_ID")
+DISCORD_CLIENT_SECRET = _get("DISCORD_CLIENT_SECRET")
+PUBLIC_URL = _get("CC_PUBLIC_URL").rstrip("/")       # https://cc.exemple.fr
+ADMINS = _ids("CC_ADMINS")                           # tout, y compris wipe, dons, effacement
+MODS = _ids("CC_MODS")                               # lire, message aux joueurs, kick
+VIEWERS = _ids("CC_VIEWERS")                         # lecture seule
+SESSION_DAYS = int(_get("CC_SESSION_DAYS", "30") or 30)
+# Proxys de confiance pour X-Forwarded-For / -Proto (Caddy dans docker-compose : "*").
+TRUSTED_PROXIES = _get("CC_TRUSTED_PROXIES", "127.0.0.1")
+
+# Webhooks Roblox (remboursements, abonnements, droit a l'effacement) : secret saisi dans
+# le Creator Hub au moment de creer le webhook. Sans secret, la route repond 404.
+ROBLOX_WEBHOOK_SECRET = _get("ROBLOX_WEBHOOK_SECRET")
+
+# Sauvegardes de data/cc.db (une par jour, gardees BACKUP_KEEP jours).
+BACKUP_DIR = Path(_get("CC_BACKUP_DIR")) if _get("CC_BACKUP_DIR") else DATA_DIR / "backups"
+BACKUP_KEEP = int(_get("CC_BACKUP_KEEP", "14") or 14)
 
 # Constantes partagees avec le jeu
 # La version des donnees (SharedConfig.DS_VERSION) prefixe tous les magasins. Ordre :

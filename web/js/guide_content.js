@@ -3,14 +3,14 @@
 //  permanent, ce qui expire, et ou passe la donnee (detail technique : document Pipelines).
 //  Les liens « #guide/<id>/<ancre> » ouvrent une section ou un document du Guide.
 
-export const GROUPS = ["Prise en main", "Live", "Joueurs", "Saison", "Diffusion", "Réglages jeu", "Aide"];
+export const GROUPS = ["Prise en main", "Live", "Joueurs", "Saison", "Diffusion", "Réglages jeu", "Système", "Aide"];
 
 export const SECTIONS = [
   {
     id: "demarrer", group: "Prise en main", title: "Démarrer et principes",
     summary: "Ce que fait le Command Center, ce qui est permanent, ce qui expire.",
     html: `
-<p>Le Command Center est un serveur local : <code>python server.py</code> (ou <code>start.bat</code>), puis <code>http://127.0.0.1:8787</code>. Il détient les secrets (clé Open Cloud, token du bot) ; la page web ne voit jamais un token et n'envoie que des intentions.</p>
+<p>Le Command Center est un serveur : sur ton PC, <code>python server.py</code> (ou <code>start.bat</code>), puis <code>http://127.0.0.1:8787</code> ; en ligne, l'adresse du serveur avec une connexion Discord (voir <a href="#guide/acces">Accès</a>). Il détient les secrets (clé Open Cloud, token du bot) ; la page web ne voit jamais un token et n'envoie que des intentions.</p>
 <p>Trois règles expliquent tout le reste :</p>
 <ul>
   <li><b>Ce que tu appliques vit dans le jeu.</b> Boosts, modes, récompenses et dons sont écrits dans les DataStores Roblox et y restent PC éteint. Les serveurs déjà ouverts sont prévenus par un message (<code>FW_Event</code>) et appliquent en moins d'une seconde.</li>
@@ -429,6 +429,62 @@ export const SECTIONS = [
 </ul>`,
   },
   {
+    id: "automatisations", group: "Système", title: "Automatisations",
+    summary: "Ce qui peut partir seul depuis une carte, quand, et comment l'arrêter.",
+    html: `
+<p>Par défaut, <b>rien ne part sans ton clic</b>. L'écran <a href="#automations">Automatisations</a> permet, règle par règle, de laisser une carte de l'Accueil publier seule ses annonces ou ses notifications.</p>
+<h4>Les réglages d'une règle</h4>
+<ul>
+  <li><b>Manuel</b> : la carte attend ton clic (défaut).</li>
+  <li><b>Avec délai</b> (0 à 120 min) : le départ est fixé à la première apparition de la carte, jamais repoussé. La carte affiche « part automatiquement à 18:15 » et un bouton <b>Annuler l'envoi auto</b> ; l'action reste alors disponible à la main.</li>
+  <li><b>Immédiat</b> : dès la minute où la carte apparaît.</li>
+  <li><b>Actions cochées</b> : seules celles-ci partent seules (par exemple le résultat global mais pas la notification).</li>
+</ul>
+<h4>Réglages communs</h4>
+<ul>
+  <li><b>Heures calmes</b> (heure de Paris) : rien ne part seul dans la plage ; l'envoi attend la fin.</li>
+  <li><b>Tout en manuel</b> : coupe toutes les règles et annule ce qui était prévu.</li>
+  <li><b>#ops-log</b> : un message à chaque envoi automatique, et à chaque échec.</li>
+</ul>
+<h4>Garde-fous</h4>
+<ul>
+  <li>Un envoi automatique suit exactement le chemin du clic : même contenu, même journal (auteur « automatique »), jamais deux fois.</li>
+  <li>Un échec n'est <b>pas retenté</b> seul : la carte affiche l'erreur et propose l'action à la main.</li>
+  <li><b>Jamais automatiques</b> : wipe, ban, redémarrage des serveurs, effacement RTBF, retrait d'objet ou d'or, dons.</li>
+  <li>Le CC doit tourner pour que quelque chose parte seul : c'est l'intérêt de l'hébergement.</li>
+</ul>`,
+  },
+  {
+    id: "acces", group: "Système", title: "Accès, webhooks et effacement",
+    summary: "Connexion Discord, rôles, webhooks Roblox, droit à l'effacement.",
+    html: `
+<h4>Connexion</h4>
+<p>Sur ton PC (<code>python server.py</code>), pas de connexion : la console n'écoute que sur cette machine. En ligne, « Se connecter avec Discord » ; seul ton identifiant Discord est lu. Ton rôle dépend de la liste où figure cet identifiant dans le <code>.env</code> du serveur :</p>
+<table>
+  <thead><tr><th>Rôle</th><th>Peut</th></tr></thead>
+  <tbody>
+    <tr><td>Administrateur (<code>CC_ADMINS</code>)</td><td>Tout : dons, wipe, bans, effacement, automatisations, réglages du jeu.</td></tr>
+    <tr><td>Modérateur (<code>CC_MODS</code>)</td><td>Tout lire, envoyer un message à un joueur ou un serveur, kicker, reporter ou ignorer une carte, voir les aperçus.</td></tr>
+    <tr><td>Lecture (<code>CC_VIEWERS</code>)</td><td>Tout lire, voir les aperçus.</td></tr>
+  </tbody>
+</table>
+<p>Retirer un identifiant et relancer coupe l'accès tout de suite. Un compte refusé voit son identifiant à l'écran : il suffit de l'ajouter. Le <a href="#history">Journal</a> indique qui a fait chaque action.</p>
+<h4>Webhooks Roblox</h4>
+<p>Roblox prévient le CC (adresse <code>/webhooks/roblox</code>, signée avec <code>ROBLOX_WEBHOOK_SECRET</code>) et chaque événement devient une carte :</p>
+<ul>
+  <li><b>Remboursement</b> : Roblox retire lui-même un pass ; pour un produit développeur (kit, or...), ce qui a été livré reste au joueur. Ouvre sa fiche et retire-le si besoin.</li>
+  <li><b>Abonnement résilié</b> (info) ou <b>remboursé</b> (à vérifier) ; achats et renouvellements vont seulement au Journal.</li>
+  <li><b>Droit à l'effacement</b> : obligation légale, 30 jours. La carte ne peut être ni ignorée ni marquée faite.</li>
+</ul>
+<h4>Effacer les données d'un joueur</h4>
+<ol>
+  <li>Carte « Droit à l'effacement », <b>Effacer les données…</b> : la fenêtre lit chaque magasin du joueur et dit ce qui existe (profil, compétences, inventaire, stash, sanctions, extraction, dettes, pièges, classements).</li>
+  <li>Tape l'identifiant du joueur pour confirmer, puis <b>Effacer définitivement</b>.</li>
+  <li>Le CC supprime aussi ce qu'il garde (liaison Discord, copies d'édition, registre des notifications, événements) et anonymise le Journal. La carte se ferme ; la trace de l'effacement reste, sans l'identifiant.</li>
+</ol>
+<p>Droits de clé nécessaires : Data Stores <b>Delete Entry</b> et Ordered Data Stores <b>Write</b>. Une entrée « illisible » dans l'aperçu signale un droit manquant.</p>`,
+  },
+  {
     id: "depannage", group: "Aide", title: "Dépannage",
     summary: "Les symptômes fréquents et leur cause.",
     html: `
@@ -437,6 +493,9 @@ export const SECTIONS = [
   <li><b>« Le .env ne semble pas pris en compte »</b> : il est lu au démarrage. Relance le serveur après l'avoir modifié.</li>
   <li><b>Contenu périmé</b> : une deuxième instance refuse de démarrer et indique comment trouver la première. Si l'écran semble ancien, un ancien process tourne encore.</li>
   <li><b>Une action Roblox répond 403</b> : Santé, <b>Tester les permissions</b>. Chaque droit manquant y est nommé. Si tout est en 403, l'IP de ce PC n'est pas autorisée par la clé, ou la clé n'appartient pas au groupe.</li>
+  <li><b>« Réservé aux administrateurs »</b> : ton rôle ne permet pas cette action (voir Accès).</li>
+  <li><b>« Jeton de sécurité absent ou périmé »</b> : le serveur a redémarré ; recharge la page.</li>
+  <li><b>Démarrage refusé</b> : le CC n'accepte pas d'écouter hors de cette machine sans connexion Discord configurée. Le message dit quelle variable manque.</li>
 </ul>
 <h4>Accueil</h4>
 <ul>

@@ -78,3 +78,43 @@ directly. The Open Cloud and Discord REST clients were not rewritten as async: t
 I/O-bound calls of a few hundred milliseconds, the thread pool absorbs them, and a rewrite
 would have touched every module for no visible gain at this scale. Account links moved from
 `roblox_links.json` to SQLite (imported once).
+
+## ADR 5: Discord login, an ID allowlist, server-side sessions
+
+**Context.** The console must be reachable from a phone with the PC off (lot 6), and it can
+ban players, give items and erase data. The team already lives on Discord; there are three
+or four operators, not an organisation chart.
+
+**Decision.** "Sign in with Discord" (OAuth2, `identify` scope only; the Discord token is
+discarded after reading the user id). Access is three lists of Discord ids in the
+environment: admins (everything), moderators (read, message players, kick, snooze cards),
+viewers (read). The role is recomputed on every request. Sessions are random 256-bit tokens
+in a `__Host-` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`); SQLite stores only their
+SHA-256. Every write needs the session's CSRF token in a header and a matching `Origin`;
+writes and logins are rate-limited. Without OAuth settings the console runs in local mode:
+no login, but it refuses to listen beyond loopback and rejects non-local `Host` headers.
+
+**Consequences.** No password to store or reset, no user table to administer, and removing
+an id from `.env` revokes access immediately, including open sessions. Roles via Discord
+guild roles would avoid editing `.env`, but would make access depend on the bot being up and
+on guild permissions anyone with Manage Roles can change; the explicit list is easier to
+audit. The `Strict` cookie is not sent on the first navigation from another site (a link in
+Discord), so the login page checks the session with a same-origin request and moves on.
+
+## ADR 6: webhooks verify and store; automations reuse the click path
+
+**Context.** Roblox webhooks (refunds, subscriptions, right to erasure) need an endpoint that
+answers within 5 s or Roblox gives up on the URL. Operators also want routine publications
+(season results, ranked top 10) to go out on their own, without losing the safety of the
+preview-then-publish flow.
+
+**Decision.** The webhook endpoint only verifies (HMAC, 5-minute window, size), stores the
+event under its `NotificationId` (duplicates dropped) and answers. Everything else is a Home
+card. Automations are a per-rule setting (manual by default) read by a one-minute loop that
+calls the exact handlers a click would, with `auto` as the author; a failure is recorded and
+handed back to a human, never retried. Only publish and notify actions of listed cards can
+be automated; erasure, bans, wipes, restarts and item removal are not in any rule.
+
+**Consequences.** A slow Open Cloud or Discord call can never make Roblox drop the webhook,
+and every automatic action has the same audit trail and idempotence keys as a manual one.
+The loop's granularity is a minute, which is enough for announcements.

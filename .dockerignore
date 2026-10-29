@@ -13,4 +13,8 @@ data/schedule.json
 data/live_*.json
 data/todo_state.json
 data/notifications.json
+data/bot_data.json
+data/roblox_links.json
+data/backups
+deploy
 tests/e2e

@@ -1,0 +1,11 @@
+# Caddy : HTTPS automatique (Let's Encrypt) devant le Command Center.
+# CC_DOMAIN vient du fichier .env (ex. cc.mondomaine.fr) ; son enregistrement DNS A/AAAA doit
+# pointer sur ce serveur AVANT le premier demarrage, sinon le certificat ne peut pas etre emis.
+{$CC_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy cc:8787
+	log {
+		output stdout
+		format console
+	}
+}

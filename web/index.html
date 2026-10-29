@@ -12,6 +12,9 @@
 </head>
 <body>
   <header class="topbar">
+    <button id="menu-btn" class="menu-btn" aria-label="Menu" aria-expanded="false" aria-controls="nav">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
     <div class="brand">
       <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 2.5 20 6v6.2c0 4.6-3.3 8.4-8 9.3-4.7-.9-8-4.7-8-9.3V6z" fill="none" stroke="#c9a24b" stroke-width="1.6"/>
@@ -25,11 +28,12 @@
       <span id="status-pills" class="pills"></span>
       <button id="palette-btn" class="btn ghost" title="Palette de commandes : écrans, joueurs, actions">Rechercher <kbd>Ctrl K</kbd></button>
       <button id="refresh-btn" class="btn ghost" title="Relire les connexions et l'écran ouvert">Actualiser</button>
+      <div id="user-chip" class="user-chip"></div>
     </div>
   </header>
 
   <div class="layout">
-    <aside class="nav">
+    <aside class="nav" id="nav">
       <div class="nav-item" data-view="home"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M4 11 12 4l8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-6h4v6"/></svg></span>Accueil<span id="home-badge"></span></div>
 
       <div class="nav-label">Live</div>
@@ -39,7 +43,7 @@
       <div class="nav-label">Joueurs</div>
       <div class="nav-item" data-view="players"><span class="ni-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg></span>Fiches</div>
       <div class="nav-item" data-view="security"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M12 8v5"/><path d="M12 16.5v.01"/></svg></span>Sécurité</div>
-      <div class="nav-item" data-view="give"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4"/><path d="M12 12v8"/></svg></span>Dons et wipe</div>
+      <div class="nav-item" data-view="give" data-admin><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4"/><path d="M12 12v8"/></svg></span>Dons et wipe</div>
 
       <div class="nav-label">Saison</div>
       <div class="nav-item" data-view="factionwar"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M5 19 19 5"/><path d="M15 5h4v4"/><path d="M19 19 5 5"/><path d="M9 5H5v4"/></svg></span>Faction War</div>
@@ -60,12 +64,22 @@
       <div class="nav-item" data-view="arsenal"><span class="ni-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>Arsenal</div>
 
       <div class="nav-label">Système</div>
+      <div class="nav-item" data-view="automations"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/><path d="M12 10v2l1.5 1"/></svg></span>Automatisations</div>
       <div class="nav-item" data-view="health"><span class="ni-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8.5 12.5l2.5 2.5 4.5-5.5"/></svg></span>Santé</div>
       <div class="nav-item" data-view="guide"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M5 18a2 2 0 0 1 2-2h11"/></svg></span>Guide</div>
     </aside>
 
     <main id="main" class="main"></main>
   </div>
+  <div class="nav-backdrop" id="nav-backdrop"></div>
+
+  <!-- Telephone : les trois ecrans du quotidien a portee de pouce, le reste dans Menu. -->
+  <nav class="tabbar" aria-label="Navigation rapide">
+    <button class="tab" data-view="home"><svg viewBox="0 0 24 24"><path d="M4 11 12 4l8 7"/><path d="M6 10v10h12V10"/></svg>Accueil<span class="tab-badge" id="tab-home-badge"></span></button>
+    <button class="tab" data-view="live"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Serveurs</button>
+    <button class="tab" data-view="players"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg>Fiches</button>
+    <button class="tab" id="tab-menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Menu</button>
+  </nav>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

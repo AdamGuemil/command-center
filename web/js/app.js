@@ -1,5 +1,5 @@
 //  app.js — amorcage, routage et barre d'etat
-import { api } from "./api.js";
+import { api, me } from "./api.js";
 import { h, mount, toast } from "./ui.js";
 import * as V from "./views.js";
 import { viewGuide } from "./guide.js";
@@ -9,6 +9,7 @@ import { viewTrends } from "./trends.js";
 import { viewTodo } from "./todo.js";
 import { viewHome } from "./home.js";
 import { viewNotify } from "./notify.js";
+import { viewAutomations } from "./automations.js";
 import { installPalette, openPalette } from "./palette.js";
 import { alerts, notifyBrowser } from "./alerts.js";
 
@@ -38,6 +39,7 @@ const VIEWS = {
   schedule: V.viewSchedule,
   notify: viewNotify,
   history: V.viewHistory,
+  automations: viewAutomations,
   health: V.viewHealth,
   guide: viewGuide,
 };
@@ -56,15 +58,16 @@ async function show(name) {
   currentView = name;
   const hash = decodeURIComponent(location.hash.slice(1));
   if (baseOf(hash) !== name || (full.includes("/") && hash !== full)) history.replaceState(null, "", `#${full}`);
-  document.querySelectorAll(".nav-item").forEach((el) =>
+  document.querySelectorAll(".nav-item, .tab[data-view]").forEach((el) =>
     el.classList.toggle("active", el.dataset.view === name));
+  setNav(false);
   mount(main, h("div", { class: "empty" }, "Chargement…"));
   try {
     await VIEWS[name](main);
   } catch (e) {
     mount(main,
       h("div", { class: "banner bad" }, `Erreur : ${e.message}`),
-      h("div", { class: "muted" }, "Si le serveur local ne répond plus, relance-le : python server.py"));
+      h("div", { class: "muted" }, "Si le serveur ne répond plus, relance-le (python server.py, ou docker compose up -d)."));
   }
   refreshBadge();
 }
@@ -156,6 +159,7 @@ const HOME_SEEN_KEY = "cc.home.notified";
 function renderHome(data) {
   const urgent = (data?.cards || []).filter((c) => c.prio === "crit" || c.prio === "high");
   const n = (data?.cards || []).length;
+  document.getElementById("tab-home-badge").textContent = n ? String(n) : "";
   homeBadge.replaceChildren(...(n ? [h("span", {
     class: `nav-badge${urgent.length ? "" : " soft"}`,
     title: `${n} carte(s) à traiter, dont ${urgent.length} importante(s)`,
@@ -180,12 +184,53 @@ window.addEventListener("cc:home", (e) => renderHome(e.detail));
 // La vue Live signale qu'elle a affiche les alertes (evenement DOM : pas d'import croise).
 window.addEventListener("cc:alerts-seen", refreshBadge);
 
+//  MENU (telephone) : la barre laterale devient un tiroir.
+const navEl = document.getElementById("nav");
+const menuBtn = document.getElementById("menu-btn");
+function setNav(open) {
+  document.body.classList.toggle("nav-open", open);
+  menuBtn.setAttribute("aria-expanded", String(open));
+}
+menuBtn.addEventListener("click", () => setNav(!document.body.classList.contains("nav-open")));
+document.getElementById("tab-menu").addEventListener("click", () => setNav(!document.body.classList.contains("nav-open")));
+document.getElementById("nav-backdrop").addEventListener("click", () => setNav(false));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") setNav(false); });
+document.querySelectorAll(".tab[data-view]").forEach((el) => el.addEventListener("click", () => show(el.dataset.view)));
+
+//  COMPTE : qui est connecte, avec quel role ; deconnexion en mode heberge.
+async function renderUser() {
+  const who = await me();
+  const chip = document.getElementById("user-chip");
+  if (!who) return;
+  document.body.dataset.role = who.role;
+  navEl.querySelectorAll("[data-admin]").forEach((el) => { el.hidden = who.role !== "admin"; });
+  if (who.local) {
+    chip.replaceChildren(h("span", { class: "pill ok", title: "Mode local : pas de connexion, cette machine seulement" }, "Local"));
+    return;
+  }
+  const out = h("button", { class: "btn ghost" }, "Se déconnecter");
+  out.addEventListener("click", async () => {
+    try { await api.logout(); } catch { /* deja deconnecte */ }
+    location.href = "/login";
+  });
+  chip.replaceChildren(h("details", { class: "user-menu" }, [
+    h("summary", { title: `${who.user.name} · ${who.roleLabel}` }, [
+      who.user.avatar ? h("img", { src: who.user.avatar, alt: "", width: "24", height: "24" })
+        : h("span", { class: "avatar" }, who.user.name.slice(0, 1).toUpperCase()),
+      h("span", { class: "user-name" }, who.user.name),
+    ]),
+    h("div", { class: "user-pop" }, [
+      h("div", {}, h("b", {}, who.user.name)), h("div", { class: "muted" }, who.roleLabel), out,
+    ]),
+  ]));
+}
+
 //  AMORCAGE : chaque bloc echoue seul, un Discord KO n'empeche pas d'ouvrir Live.
 async function bootstrap() {
   try {
     V.state.status = await api.status();
   } catch (e) {
-    toast(`Serveur local injoignable : ${e.message}`, "bad");
+    toast(`Serveur injoignable : ${e.message}`, "bad");
   }
   renderPills();
 
@@ -204,6 +249,7 @@ async function bootstrap() {
 
 document.querySelectorAll(".nav-item").forEach((el) =>
   el.addEventListener("click", () => show(el.dataset.view)));
+
 window.addEventListener("hashchange", () => {
   const name = decodeURIComponent(location.hash.slice(1));
   if (!name) return;
@@ -220,6 +266,11 @@ document.getElementById("refresh-btn").addEventListener("click", async () => {
 });
 
 renderPulse();
+await renderUser();
+try {
+  const next = sessionStorage.getItem("cc.next");
+  if (next) { sessionStorage.removeItem("cc.next"); history.replaceState(null, "", next); }
+} catch { /* stockage indisponible */ }
 await bootstrap();
 await pollPulse();
 setInterval(() => { if (!document.hidden) pollPulse(); }, PULSE_MS);

@@ -27,8 +27,9 @@ Roblox `/link`, `/confirm`, `/sync`, `/whois`). Le bot lit `data/bot_data.json`,
 par `tools/setup_discord.py` ; les liaisons Discord ↔ Roblox sont dans `data/cc.db` (un ancien
 `roblox_links.json` est importé au premier démarrage). `python bot.py` le lance seul.
 
-Il ne tourne **que pendant que tu l'utilises** — `Ctrl+C` et plus rien ne
-tourne. Pas d'hébergement 24/7.
+Sur ton PC, il ne tourne **que pendant que tu l'utilises** (`Ctrl+C` et plus rien ne tourne),
+sans connexion et sur `127.0.0.1` uniquement. Pour une console allumée en permanence,
+accessible depuis ton téléphone avec une connexion Discord : [Héberger](#héberger).
 
 ---
 
@@ -40,7 +41,7 @@ tourne. Pas d'hébergement 24/7.
 | 📚 **Modèles** | Créer/éditer tes propres modèles, partagés avec `announce.py` |
 | 🗓️ **Planificateur** | File d'annonces à venir, avec marquage des échéances |
 | 🔔 **Notifications** | Notifications Roblox hors du jeu (6 textes : ranked, résultat et fin de saison, événement, mise à jour, retour des inactifs). Asset IDs du Creator Hub, test sur ton compte, aperçu de l'audience, une par joueur et par jour, écran ouvert au Hub ([PIPELINES.md](PIPELINES.md#vers-les-joueurs--notifications-roblox)) |
-| 📜 **Journal** | Tout ce que le CC a fait (envois Discord, écritures dans le jeu, cartes traitées), dans `data/cc.db` |
+| 📜 **Journal** | Tout ce que le CC a fait et **qui** l'a fait (compte Discord, « automatique », « webhook », « local ») : envois Discord, écritures dans le jeu, cartes traitées, connexions, dans `data/cc.db` |
 | 🏠 **Accueil** | Page d'ouverture : une carte par chose à faire (saison close, ranked, triche, pièges, avis négatifs, boost fini, OPERATIONS, versions, tâches manuelles), avec aperçu avant toute publication, et le temps restant de la saison |
 | 📡 **Live** | Serveurs ouverts (Hubs, matchs), mode, map, phase, joueurs, FPS, version ; rafraîchi toutes les 5 s tant que l'onglet est ouvert |
 | 📈 **Tendances** | Mesures de Roblox (Analytics) par place : pic de joueurs, crashs serveur par cause, FPS, mémoire et CPU serveur, crashs client, DataStore, joueurs actifs, revenus. Coût nul pour le jeu |
@@ -51,6 +52,7 @@ tourne. Pas d'hébergement 24/7.
 | 🎮 **Modes** | Disponibilité live des files et fenêtre temporaire de l'événement OPERATIONS |
 | 🔫 **Arsenal** | Stats, prix et niveaux locaux, audit de progression et export ShopConfig des armes et des habits (onglet **Habits**) |
 | 📖 **Guide** | Une page par écran (ce que fait chaque bouton, ce qui est permanent, ce qui expire), et les documents du dépôt lus en direct : `PIPELINES.md`, guide des pièges, plan, ce README. Recherche (touche `/`), liens directs `#guide/<page>/<ancre>` |
+| ⚙️ **Automatisations** | Règle par règle, ce qui peut partir seul depuis une carte (manuel par défaut, délai annulable, heures calmes, « tout en manuel ») ; jamais wipe, ban, redémarrage, effacement ni retrait |
 | 🩺 **Santé** | État de chaque connexion, avec le détail exact de ce qui manque |
 
 Dans **Modes**, OPERATIONS est désactivé par défaut. Son activation demande une durée : le
@@ -184,7 +186,7 @@ système, choisir ton expérience (son univers) :
 | Système | Opérations | Sert à |
 |---|---|---|
 | Data Stores | Read Entry, Create Entry, Update Entry, Delete Entry, List Entry Keys | boosts, modes, give, barèmes, maintenance, modifications de joueur hors ligne |
-| Ordered Data Stores | Read | classements Faction War et ranked, index d'activité des notifications |
+| Ordered Data Stores | Read ; Write | classements Faction War et ranked, index d'activité des notifications ; Write pour l'effacement RTBF |
 | Messaging Service | Publish | pousser aux serveurs ouverts |
 | Memory Store | Sorted Map Read, Write ; Queue Read, Discard | serveurs live, événements, verrous d'édition (lots 1-3) |
 | Subscriptions | Read | abonnement d'un joueur dans sa fiche (lot 1) |
@@ -211,10 +213,69 @@ que les ids listés dans sa variable `ALLOWED_WEBHOOK_IDS`.
 
 ---
 
+## Héberger
+
+Une console en ligne, allumée en permanence, ouverte depuis un navigateur sur PC ou
+téléphone : `https://cc.<ton-domaine>`. Un conteneur Docker pour le CC, un pour Caddy (HTTPS
+automatique). Il faut un petit serveur Linux avec Docker (1 vCPU et 1 Go de RAM suffisent) et
+un nom de domaine.
+
+1. **DNS** : un enregistrement `A` (et `AAAA` si IPv6) de `cc.<ton-domaine>` vers l'IP du
+   serveur. Caddy en a besoin pour obtenir le certificat au premier démarrage.
+2. **Application Discord** (Developer Portal, la même que celle du bot) > OAuth2 : copier
+   *Client ID* et *Client Secret* ; dans *Redirects*, ajouter exactement
+   `https://cc.<ton-domaine>/auth/callback`. Seul le scope `identify` est demandé.
+3. **Ton identifiant Discord** : Paramètres > Avancés > Mode développeur, puis clic droit sur
+   ton nom > *Copier l'identifiant*.
+4. **Sur le serveur** :
+   ```bash
+   git clone https://github.com/AdamGuemil/command-center.git && cd command-center
+   cp .env.example .env    # remplir : clés Roblox et Discord, puis la partie « Heberge »
+   docker compose up -d --build
+   ```
+   Le `.env` doit contenir au minimum `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`,
+   `CC_PUBLIC_URL=https://cc.<ton-domaine>`, `CC_DOMAIN=cc.<ton-domaine>` et `CC_ADMINS`.
+   Sans eux, le CC **refuse de démarrer** plutôt que de s'exposer sans connexion.
+   Pour le bot dans le même processus : `CC_BOT=1` et `data/bot_data.json` copié dans le
+   volume (`docker compose cp bot_data.json cc:/app/data/`).
+5. **Clé Open Cloud** : restreindre *Accepted IP Addresses* à l'IP du serveur.
+6. **Webhooks Roblox** (Creator Hub, profil du groupe > Webhooks) : URL
+   `https://cc.<ton-domaine>/webhooks/roblox`, un secret long et aléatoire recopié dans
+   `ROBLOX_WEBHOOK_SECRET`, déclencheurs *Transaction Refunded*, *Subscription* et *Right to
+   Erasure*. Le bouton *Test Response* doit faire apparaître la carte « Webhook Roblox reçu ».
+7. **Sonde de disponibilité** : un service gratuit (UptimeRobot, Better Stack...) qui appelle
+   `https://cc.<ton-domaine>/healthz` toutes les 5 minutes et prévient par mail ou Discord.
+   `/healthz` est public et ne dit rien de sensible (état de la base, version, dernière
+   sauvegarde).
+
+**Rôles** : `CC_ADMINS` (tout), `CC_MODS` (lire, message aux joueurs, kick, reporter une carte),
+`CC_VIEWERS` (lecture). Le rôle est relu à chaque requête : retirer un identifiant du `.env`
+et relancer (`docker compose up -d`) coupe l'accès, sessions ouvertes comprises. Un compte
+inconnu qui tente de se connecter voit son identifiant, à te transmettre.
+
+**Mises à jour** : `git pull && docker compose up -d --build`. La CI publie aussi l'image de
+chaque commit vert de `main` sur `ghcr.io/adamguemil/command-center` ; le déploiement
+automatique viendra avec le choix de l'hébergeur.
+
+**Sauvegardes** : une copie de `cc.db` par jour dans le volume (`data/backups`, 14 gardées).
+Elles restent sur le serveur : pour une copie ailleurs,
+`docker compose cp cc:/app/data/backups ./backups` depuis une autre machine, ou la sauvegarde
+automatique de l'hébergeur.
+
+---
+
 ## Sécurité
 
-- `.env` est dans `.gitignore` — les secrets ne quittent pas ta machine.
-- Le serveur n'écoute que sur `127.0.0.1` : rien n'est exposé au réseau.
+- `.env` est dans `.gitignore` — les secrets ne quittent pas ta machine (ou le serveur).
+- **Local** : sans connexion configurée, le CC n'écoute que sur `127.0.0.1` et refuse
+  toute requête dont l'en-tête `Host` n'est pas local (parade au DNS rebinding).
+- **Hébergé** : connexion Discord obligatoire ; cookie de session `HttpOnly`, `Secure`,
+  `SameSite=Strict`, préfixe `__Host-` ; seule l'empreinte du jeton est en base.
+- Toute écriture exige l'en-tête `X-CC-CSRF` de la session et une origine identique ;
+  60 écritures par minute et par compte au plus ; 10 tentatives de connexion par minute et
+  par IP.
+- Webhooks Roblox : signature HMAC-SHA256 vérifiée en temps constant, horodatage à moins de
+  5 minutes, doublons ignorés (`NotificationId`).
 - Ne partage jamais ce dossier avec un `.env` dedans.
 - Si un token fuite : Reset Token (Discord) / supprime la clé (Creator Hub).
 - Un webhook Discord ne se régénère pas : en créer un nouveau, mettre à jour le secret

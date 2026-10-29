@@ -1,11 +1,41 @@
-# docker compose up  ->  http://localhost:8787, configure par le fichier .env.
+# Hebergement : le Command Center derriere Caddy (HTTPS automatique).
+#   1. DNS : un enregistrement A (et AAAA) de CC_DOMAIN vers l'IP du serveur ;
+#   2. .env rempli (voir .env.example, partie « Heberge ») ;
+#   3. docker compose up -d --build
+# Le CC n'est joignable QUE par Caddy (pas de port publie) ; ses donnees vivent dans le
+# volume cc-data (base, sauvegardes quotidiennes), qui survit aux mises a jour.
+# Sur ton PC, pas besoin de Docker : python server.py.
 services:
-  command-center:
+  cc:
     build: .
-    ports:
-      - "127.0.0.1:8787:8787"
+    image: shroud-cc
+    restart: unless-stopped
     env_file: .env
+    environment:
+      CC_HOST: 0.0.0.0
+      CC_OPEN_BROWSER: "0"
+      CC_TRUSTED_PROXIES: "*"      # seul Caddy peut joindre ce conteneur
     volumes:
       - cc-data:/app/data
+    expose:
+      - "8787"
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on: [cc]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CC_DOMAIN: ${CC_DOMAIN:?CC_DOMAIN manquant dans .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
 volumes:
   cc-data:
+  caddy-data:
+  caddy-config:

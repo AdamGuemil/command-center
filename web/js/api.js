@@ -1,18 +1,35 @@
-//  api.js — acces au serveur local
-//  Le navigateur ne detient AUCUN secret : il envoie des intentions,
-//  le serveur local (server.py) fait les appels Discord / Roblox.
+//  api.js — acces au serveur du Command Center
+//  Le navigateur ne detient AUCUN secret Discord ou Roblox : il envoie des intentions,
+//  le serveur fait les appels. Chaque ecriture porte le jeton CSRF de la session
+//  (en-tete X-CC-CSRF, lu sur /api/me) ; une session expiree renvoie vers /login.
 
-async function req(path, options = {}) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+let mePromise = null;
+export const me = (fresh = false) => {
+  if (fresh || !mePromise) {
+    mePromise = fetch("/api/me", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  }
+  return mePromise;
+};
+
+function toLogin() {
+  try { sessionStorage.setItem("cc.next", location.hash); } catch { /* stockage indisponible */ }
+  location.href = "/login";
+}
+
+async function req(path, options = {}, retried = false) {
+  const headers = { "Content-Type": "application/json" };
+  if (options.method && options.method !== "GET") headers["X-CC-CSRF"] = (await me())?.csrf || "";
+  const res = await fetch(path, { credentials: "same-origin", ...options, headers });
+  if (res.status === 401) { toLogin(); throw new Error("Session expirée : reconnexion…"); }
   let data;
   try {
     data = await res.json();
   } catch {
     throw new Error(`Reponse illisible du serveur (HTTP ${res.status})`);
   }
+  // Jeton perime (serveur relance en mode local) : on relit /api/me et on rejoue une fois.
+  if (res.status === 403 && data.csrf && !retried) { await me(true); return req(path, options, true); }
   if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
@@ -104,6 +121,14 @@ export const api = {
   modes: () => get("/api/modes"),
   saveModes: (values) => post("/api/modes", { action: "save", values }),
   resetModes: () => post("/api/modes", { action: "reset" }),
+
+  logout: () => post("/auth/logout", {}),
+  automations: () => get("/api/automations"),
+  saveAutomation: (rule, config) => post("/api/automations", { rule, config }),
+  cancelAutomation: (card, action) => post("/api/automations/cancel", { card, action }),
+  erasurePlan: (userId, card) => post("/api/erasure/plan", { userId, card }),
+  erasureApply: (token, confirm) => post("/api/erasure/apply", { token, confirm }),
+  webhooks: () => get("/api/webhooks"),
 
   maintScan: (payload) => post("/api/maintenance/scan", payload),
   maintPurge: (userIds) => post("/api/maintenance/purge", { userIds }),

@@ -74,6 +74,82 @@ function previewDialog(card, action, onDone) {
   });
 }
 
+// DROIT A L'EFFACEMENT : apercu de chaque entree, puis confirmation en tapant l'identifiant.
+function eraseDialog(card, action, refresh) {
+  const uid = String(action.userId);
+  const body = h("div", { class: "dlg-body" }, h("div", { class: "muted" }, "Lecture des magasins du joueur…"));
+  const confirm = h("input", { type: "text", inputmode: "numeric", autocomplete: "off", "aria-label": "Identifiant du joueur" });
+  const go = h("button", { class: "btn danger", disabled: true }, "Effacer définitivement");
+  const cancel = h("button", { class: "btn" }, "Annuler");
+  const dlg = h("div", { class: "dlg-back", role: "dialog", "aria-modal": "true", "aria-label": "Effacement" }, [
+    h("div", { class: "dlg" }, [
+      h("div", { class: "dlg-head" }, [h("div", { class: "muted" }, card.title), h("h3", {}, "Effacer les données du joueur")]),
+      body,
+      h("div", { class: "dlg-foot" }, [h("span", { class: "muted" }, "Irréversible."), h("div", { style: "flex:1" }), cancel, go]),
+    ]),
+  ]);
+  const close = () => { dlg.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  cancel.addEventListener("click", close);
+  document.body.append(dlg);
+  cancel.focus();
+  let plan = null;
+  const check = () => { go.disabled = !plan || confirm.value.trim() !== uid; };
+  confirm.addEventListener("input", check);
+  api.erasurePlan(uid, card.key).then((p) => {
+    plan = p;
+    mount(body,
+      h("p", {}, [`${p.found} entrée(s) trouvée(s) chez Roblox`, p.unreadable ? `, ${p.unreadable} illisible(s) (permission manquante ?)` : "", ". "
+        + "Toutes les entrées listées seront supprimées ; en base locale : " + p.local + "."]),
+      h("div", { class: "dlg-scroll" }, h("table", {}, [
+        h("thead", {}, h("tr", {}, ["Magasin", "Clé", "État"].map((x) => h("th", {}, x)))),
+        h("tbody", {}, p.rows.map((r) => h("tr", {}, [
+          h("td", {}, r.store), h("td", {}, h("code", {}, r.key)),
+          h("td", {}, r.error ? h("span", { class: "tag bad", title: r.error }, "illisible")
+            : r.exists ? h("span", { class: "tag warn" }, "présent") : h("span", { class: "muted" }, "absent")),
+        ]))),
+      ])),
+      h("div", { class: "muted" }, p.notCovered),
+      h("label", { class: "field" }, [h("span", {}, `Pour confirmer, tape l'identifiant du joueur : ${uid}`), confirm]));
+    check();
+    confirm.focus();
+  }).catch((e) => mount(body, h("div", { class: "banner bad", style: "margin:0" }, e.message)));
+  go.addEventListener("click", async () => {
+    go.disabled = true;
+    go.textContent = "Effacement…";
+    try {
+      const r = await api.erasureApply(plan.token, confirm.value.trim());
+      toast(r.ok ? "Données effacées." : "Effacement partiel : voir le Journal.", r.ok ? "ok" : "bad");
+      close();
+      refresh(r);
+    } catch (e) {
+      toast(e.message, "bad");
+      go.textContent = "Effacer définitivement";
+      check();
+    }
+  });
+}
+
+// AUTOMATISATION : ce qui partira seul depuis cette carte, et quand.
+function autoLines(c, refresh) {
+  return c.actions.filter((a) => a.auto && !(a.auto.state === "done" || a.auto.state === "cancelled")).map((a) => {
+    const st = a.auto;
+    if (st.state === "failed") {
+      return h("div", { class: "hc-auto bad" }, `Échec de l'envoi automatique « ${a.label} » : ${st.error || "erreur inconnue"}. À refaire à la main.`);
+    }
+    if (st.state === "pending") return h("div", { class: "hc-auto" }, `« ${a.label} » partira automatiquement (règle active).`);
+    const when = new Date(st.due * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
+    const stop = h("button", { class: "btn ghost sm" }, "Annuler l'envoi auto");
+    stop.addEventListener("click", async () => {
+      stop.disabled = true;
+      try { refresh(await api.cancelAutomation(c.key, a.id)); toast("Envoi automatique annulé : l'action reste disponible à la main."); }
+      catch (e) { toast(e.message, "bad"); stop.disabled = false; }
+    });
+    return h("div", { class: "hc-auto" }, [`« ${a.label} » part automatiquement à ${when}.`, stop]);
+  });
+}
+
 // NOTIFICATION JOUEURS depuis une carte : meme fenetre que Diffusion > Notifications.
 async function openNotify(card, action, refresh) {
   let entry = null;
@@ -95,7 +171,9 @@ function cardView(c, refresh) {
     const b = h("button", { class: `btn ${a.done ? "" : "primary"}`, title: a.done ? `Déjà ${doneWord} depuis cette carte` : "" },
       a.done ? `${a.label} (${doneWord})` : a.label);
     if (a.kind === "notify" && a.done) b.disabled = true;
+    if (a.kind === "erase") b.classList.replace("primary", "danger");
     b.addEventListener("click", async () => {
+      if (a.kind === "erase") return eraseDialog(c, a, refresh);
       if (a.kind === "publish") return previewDialog(c, a, refresh);
       if (a.kind === "notify") return openNotify(c, a, refresh);
       b.disabled = true;
@@ -118,8 +196,8 @@ function cardView(c, refresh) {
   ]);
   const secondary = [
     c.noSnooze ? null : later,
-    c.prio === "waiting" ? null : (() => { const b = h("button", { class: "btn ghost", title: "Fermer : c'est réglé" }, "Fait"); b.addEventListener("click", () => setState("done")); return b; })(),
-    (() => { const b = h("button", { class: "btn ghost", title: "Ne plus afficher cette carte" }, "Ignorer"); b.addEventListener("click", () => setState("dismissed")); return b; })(),
+    c.prio === "waiting" || c.noDismiss ? null : (() => { const b = h("button", { class: "btn ghost", title: "Fermer : c'est réglé" }, "Fait"); b.addEventListener("click", () => setState("done")); return b; })(),
+    c.noDismiss ? null : (() => { const b = h("button", { class: "btn ghost", title: "Ne plus afficher cette carte" }, "Ignorer"); b.addEventListener("click", () => setState("dismissed")); return b; })(),
   ];
 
   const when = c.due ? `échéance ${rel(c.due)}` : c.at ? rel(c.at) : "";
@@ -136,6 +214,7 @@ function cardView(c, refresh) {
       c.where ? h("dt", {}, "Où") : null, c.where ? h("dd", {}, c.where) : null,
       c.why ? h("dt", {}, "À quoi ça sert") : null, c.why ? h("dd", {}, c.why) : null,
     ]) : null,
+    ...autoLines(c, refresh),
     h("div", { class: "hc-actions" }, [...actions, h("div", { style: "flex:1" }), ...secondary]),
   ]);
 }

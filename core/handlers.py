@@ -15,6 +15,7 @@ from typing import Any
 from . import (
     analytics,
     arsenal,
+    automations,
     cards,
     commands,
     config,
@@ -23,6 +24,7 @@ from . import (
     discord_api,
     docs,
     edits,
+    erasure,
     grants,
     live,
     maintenance,
@@ -35,6 +37,7 @@ from . import (
     store,
     todo,
     watch,
+    webhooks,
 )
 from . import vars as tvars
 
@@ -472,6 +475,8 @@ def api_cards_act(body: dict) -> dict:
     elif action.get("template"):
         res = _announce_from_template(action["template"], card=key)
         ok = bool(res.get("sent"))
+        if ok and key.startswith("schedule:"):
+            store.mark_schedule_done(key.split(":", 1)[1])
     elif action["id"] == "todo_done":
         res = todo.mark(key.split(":", 1)[1], True)
         ok = True
@@ -598,6 +603,9 @@ ROUTES_GET = {
     "/api/arsenal": lambda q: arsenal.overview(),
     # Notifications joueurs : catalogue, Asset IDs, campagnes et registre du jour (local).
     "/api/notify": lambda q: notify.overview(),
+    # Lot 6 : automatisations, webhooks Roblox recus
+    "/api/automations": lambda q: automations.overview(),
+    "/api/webhooks": lambda q: {"events": webhooks.recent(), "configured": bool(config.ROBLOX_WEBHOOK_SECRET)},
 }
 
 
@@ -668,6 +676,13 @@ ROUTES_POST = {
                                               int(b["userId"]) if str(b.get("userId") or "").isdigit() else None,
                                               b.get("params") if isinstance(b.get("params"), dict) else None),
     "/api/notify/stop": lambda b: notify.stop(),
+    "/api/automations": lambda b: automations.save(str(b.get("rule") or ""),
+                                                   b.get("config") if isinstance(b.get("config"), dict) else {}),
+    "/api/automations/cancel": lambda b: {**automations.cancel(str(b.get("card") or ""), str(b.get("action") or "")),
+                                          **cards.overview()},
+    "/api/erasure/plan": lambda b: erasure.plan(_int(b, "userId"), str(b["card"]) if b.get("card") else None),
+    "/api/erasure/apply": lambda b: {**erasure.apply(str(b.get("token") or ""), str(b.get("confirm") or "")),
+                                     **cards.overview(force=True)},
 }
 
 

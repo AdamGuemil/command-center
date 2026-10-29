@@ -42,8 +42,9 @@ import json
 import threading
 import time
 import urllib.request
+from datetime import datetime
 
-from . import analytics, config, db, discord_api, events, live
+from . import analytics, config, db, discord_api, events, live, roblox_api
 
 INTERVAL_S = 20
 CC_ALERT_AFTER_S = 150          # le CC ne poste dans Discord qu'en dernier recours
@@ -282,7 +283,7 @@ def analytics_tick(crashes: list[dict] | None = None) -> None:
             _state["robloxSeen"].add(key)
             event = _emit("roblox_crash", "crit",
                           f"Roblox a compté {c['count']} crash(s) serveur sur {c['place']} à "
-                          f"{time.strftime('%H:%M', time.localtime(c['at']))}. Cause : {c['cause']}.")
+                          f"{datetime.fromtimestamp(c['at'], roblox_api.FW_TIMEZONE).strftime('%H:%M')}. Cause : {c['cause']}.")
             event["key"] = key
             event["at"] = c["at"]
         events_copy = list(_state["events"])

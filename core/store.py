@@ -127,6 +127,14 @@ def save_schedule(items: list[dict]) -> list[dict]:
     return clean
 
 
+def mark_schedule_done(item_id: str) -> None:
+    items = load_schedule()
+    for it in items:
+        if str(it.get("id")) == str(item_id):
+            it["done"] = True
+    save_schedule(items)
+
+
 # -------------------------------------------------------------- HISTORIQUE -
 # Les envois vivent dans le journal d'audit (core/db.py, data/cc.db). history.json n'est
 # plus ecrit : il est importe une fois au premier demarrage puis laisse tel quel.

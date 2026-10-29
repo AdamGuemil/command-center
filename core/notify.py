@@ -376,7 +376,7 @@ def _plan(key: str, given: dict | None, ref: str | None, now: int | None, reader
     prior = [c for c in db.campaigns(5, key, aud["ref"]) if c["state"] in ("running", "done")]
     if prior:
         blockers.append(f"Déjà envoyée pour ce sujet ({aud['ref']}) le "
-                        f"{datetime.fromtimestamp(prior[0]['at']).strftime('%d/%m à %H:%M')}.")
+                        f"{datetime.fromtimestamp(prior[0]['at'], roblox_api.FW_TIMEZONE).strftime('%d/%m à %H:%M')}.")
     if _running():
         blockers.append("Une autre campagne est en cours : attends sa fin ou arrête-la.")
     warnings += aud["errors"]

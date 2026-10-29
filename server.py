@@ -23,7 +23,7 @@ import sys
 import threading
 import webbrowser
 
-from core import config
+from core import auth, config
 
 
 def _bind(host: str, port: int) -> socket.socket:
@@ -50,7 +50,15 @@ def main() -> None:
         print("\n  Dependances manquantes : pip install -r requirements.txt\n")
         raise SystemExit(1) from None
 
-    url = f"http://{config.HOST}:{config.PORT}/"
+    problems = auth.startup_problems(config.HOST)
+    if problems:
+        print("\n  Demarrage refuse :")
+        for p in problems:
+            print(f"   - {p}")
+        print()
+        raise SystemExit(1)
+
+    url = config.PUBLIC_URL + "/" if auth.enabled() and config.PUBLIC_URL else f"http://{config.HOST}:{config.PORT}/"
     try:
         sock = _bind(config.HOST, config.PORT)
     except OSError as exc:
@@ -68,6 +76,11 @@ def main() -> None:
     print("=" * 70)
     print(f"  Interface : {url}")
     print(f"  API       : {url}api/docs")
+    if auth.enabled():
+        print(f"  Acces     : connexion Discord, {len(config.ADMINS)} admin(s), {len(config.MODS)} modo(s), "
+              f"{len(config.VIEWERS)} lecteur(s)")
+    else:
+        print("  Acces     : mode local, sans connexion (ecoute sur cette machine seulement)")
     if config.BOT:
         print("  Bot Discord : demarre dans ce processus (CC_BOT=1).")
     if gaps:
@@ -77,11 +90,14 @@ def main() -> None:
     print("\n  Le .env est lu au demarrage : relance le serveur apres l'avoir modifie.")
     print("  Ctrl+C pour arreter. Rien ne tourne apres l'arret.\n")
 
-    if config.OPEN_BROWSER:
+    if config.OPEN_BROWSER and not auth.enabled():
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
 
+    # Derriere Caddy (docker-compose), l'IP du visiteur et le schema https arrivent par
+    # X-Forwarded-* : on ne les croit que venant des proxys listes dans CC_TRUSTED_PROXIES.
     server = uvicorn.Server(uvicorn.Config("app:app", log_level="warning", access_log=False,
-                                           lifespan="on"))
+                                           lifespan="on", proxy_headers=True,
+                                           forwarded_allow_ips=config.TRUSTED_PROXIES))
     try:
         server.run(sockets=[sock])
     finally:

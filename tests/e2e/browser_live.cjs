@@ -96,6 +96,50 @@ const server = http.createServer((req, res) => {
     await page.clock.runFor(10000);
     assert.equal(commandCalls,after,'broadcast acknowledgments must not poll forever');
     assert.deepEqual(errors,[]);
-    console.log('UI_OK: roster, deduplication, stale exclusion, click to sheet, refresh, empty/error states, responsive layout, contract refresh/force, bounded acknowledgment tracking');
+
+    // ACCUEIL (lot 6) : envoi automatique annoncable et annulable, effacement RTBF confirme, CSRF.
+    const home = await browser.newPage({viewport:{width:390,height:844}});
+    home.on('pageerror', e => errors.push(String(e)));
+    const t = Math.floor(Date.now()/1000);
+    let csrfSeen = [], applied = null, cancelled = null;
+    const rtbf = {key:'rtbf:n1',prio:'crit',category:'Conformité',title:"Droit à l'effacement : joueur 42",context:'',
+      actions:[{id:'erase',kind:'erase',label:'Effacer les données…',userId:42}],at:t,due:t+86400,noDismiss:true};
+    const season = {key:'fw_result:w7',prio:'high',category:'Saison',title:'Saison 8 close',context:'',
+      actions:[{id:'faction_announce',kind:'publish',label:'Annoncer aux 2 factions',auto:{state:'planned',due:t+600}}],at:t};
+    const homeData = (cards) => ({cards,waiting:[],snoozed:0,at:t,season:{label:8,endsAt:t+3600},servers:0,errors:{}});
+    await home.route('**/api/**', async route => {
+      const req = route.request(); const url = new URL(req.url()); let result = {};
+      if (req.method() === 'POST') csrfSeen.push(req.headers()['x-cc-csrf']);
+      if (url.pathname === '/api/me') result = {csrf:'tok-1',role:'admin',permissions:{admin:true},user:{name:'Adam'},local:false};
+      else if (url.pathname === '/api/home') result = homeData([rtbf, season]);
+      else if (url.pathname === '/api/live') result = {servers:[],summary:{players:0}};
+      else if (url.pathname === '/api/erasure/plan') result = {token:'tk',userId:42,found:1,unreadable:0,local:'liaisons',notCovered:'marché noir',
+        rows:[{kind:'datastore',store:'GlobalData_T',key:'p_42',exists:true,error:null},{kind:'ordered',store:'RankedLB_T',key:'42',exists:false,error:null}]};
+      else if (url.pathname === '/api/erasure/apply') { applied = req.postDataJSON(); result = {ok:true,...homeData([season])}; }
+      else if (url.pathname === '/api/automations/cancel') { cancelled = req.postDataJSON(); result = {ok:true,...homeData([rtbf])}; }
+      await route.fulfill({json:result});
+    });
+    await home.goto(`http://127.0.0.1:${server.address().port}/`);
+    await home.evaluate(async () => (await import('/js/home.js')).viewHome(document.getElementById('root')));
+    await home.getByText(/part automatiquement à/).waitFor();
+    const rtbfCard = home.locator('article', {hasText:"Droit à l'effacement"});
+    assert.equal(await rtbfCard.getByRole('button',{name:'Ignorer'}).count(),0,'RTBF must not be dismissable');
+    await rtbfCard.getByRole('button',{name:'Effacer les données…'}).click();
+    await home.getByText('p_42').waitFor();
+    const go = home.getByRole('button',{name:'Effacer définitivement'});
+    assert.ok(await go.isDisabled());
+    await home.getByRole('textbox',{name:'Identifiant du joueur'}).fill('41');
+    assert.ok(await go.isDisabled());
+    await home.getByRole('textbox',{name:'Identifiant du joueur'}).fill('42');
+    await go.click();
+    await home.getByText('Données effacées.').waitFor();
+    assert.deepEqual(applied,{token:'tk',confirm:'42'});
+    await home.getByRole('button',{name:"Annuler l'envoi auto"}).click();
+    await home.waitForFunction(() => !document.body.textContent.includes('part automatiquement'));
+    assert.deepEqual(cancelled,{card:'fw_result:w7',action:'faction_announce'});
+    assert.ok(csrfSeen.length >= 3 && csrfSeen.every(x => x === 'tok-1'), 'every write carries the CSRF token');
+    assert.ok(await home.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'home overflow on phone');
+    assert.deepEqual(errors,[]);
+    console.log('UI_OK: roster, deduplication, stale exclusion, click to sheet, refresh, empty/error states, responsive layout, contract refresh/force, bounded acknowledgment tracking, auto-send cancel, RTBF confirm, CSRF header');
   } finally { if(browser) await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
