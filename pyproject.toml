@@ -1,0 +1,39 @@
+[project]
+name = "shroud-command-center"
+version = "0.5.0"
+description = "Live-ops console for a Roblox experience: live servers, season automation, player actions, notifications, Discord."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = []          # le serveur n'utilise que la bibliotheque standard
+
+[project.optional-dependencies]
+discord = ["discord.py>=2.4", "aiohttp>=3.9"]   # tools/setup_discord.py et bot.py
+dev = ["pytest==8.3.3", "ruff==0.7.4", "mypy==1.13.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = ["data", "web"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Scripts Discord historiques, a fusionner dans le service (lot 5b) : style compact assume.
+"bot.py" = ["E701", "E702", "B008"]
+"tools/setup_discord.py" = ["E701", "E702", "B008", "E402"]
+"tests/*" = ["E402"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["core", "server.py"]
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_unused_ignores = false
+no_implicit_optional = false

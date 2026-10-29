@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OWNER/shroud-command-center/docs/contract.schema.json",
+  "title": "Shroud War game <-> Command Center contract",
+  "description": "What the game publishes for the Command Center. Written by ServerStorage/Core/CommandCenterBridge.luau (game repository), read by core/live.py. The link between the two repositories is this contract, not the file system.",
+  "$defs": {
+    "contract": {
+      "title": "CC_Contract entry (DataStore CC_Contract, key place_<PlaceId>)",
+      "type": "object",
+      "required": ["contractRev", "placeId", "placeKind", "dsVersion", "stores"],
+      "properties": {
+        "contractRev": { "const": 1, "description": "Bumped on any breaking change; the Command Center refuses unknown revisions." },
+        "placeId": { "type": "integer" },
+        "placeKind": { "enum": ["hub", "match"] },
+        "dsVersion": { "type": "string", "description": "SharedConfig.DS_VERSION, suffix of every versioned store name (e.g. SW_DEV_1)." },
+        "hubPlaceId": { "type": "integer" },
+        "gamePlaceId": { "type": "integer" },
+        "registryMap": { "const": "CC_Servers_V1" },
+        "fwTopic": { "const": "FW_Event" },
+        "stores": {
+          "type": "object",
+          "description": "Versioned DataStore names used by the player sheet.",
+          "properties": {
+            "profile": { "type": "string" }, "skills": { "type": "string" },
+            "inventory": { "type": "string" }, "stash": { "type": "string" },
+            "sanctions": { "type": "string" }, "exfilClaim": { "type": "string" },
+            "blackMarketDebts": { "type": "string" }, "factionWar": { "type": "string" },
+            "honeypot": { "type": "string" }, "honeypotIndex": { "type": "string" }
+          },
+          "additionalProperties": { "type": "string" }
+        },
+        "offers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" }, "kind": { "enum": ["pass", "subscription"] },
+              "label": { "type": "string" }, "gamePassId": { "type": "integer" },
+              "subscriptionId": { "type": "string" }
+            }
+          }
+        },
+        "writtenAt": { "type": "integer" },
+        "placeVersion": { "type": "integer" }
+      }
+    },
+    "heartbeat": {
+      "title": "Live registry entry (MemoryStore sorted map CC_Servers_V1, key = JobId, TTL 300 s)",
+      "type": "object",
+      "required": ["v", "jobId", "placeId", "kind", "startedAt", "players", "hb"],
+      "properties": {
+        "v": { "const": 1 },
+        "jobId": { "type": "string" },
+        "placeId": { "type": "integer" },
+        "placeVersion": { "type": "integer" },
+        "kind": { "enum": ["hub", "match"] },
+        "dsVersion": { "type": "string" },
+        "mode": { "type": ["string", "null"] },
+        "map": { "type": ["string", "null"] },
+        "matchId": { "type": ["string", "null"] },
+        "phase": { "type": ["string", "null"] },
+        "private": { "type": ["boolean", "null"] },
+        "startedAt": { "type": "integer" },
+        "fps": { "type": "integer" },
+        "mem": { "type": "integer", "description": "MB" },
+        "netIn": { "type": "integer", "description": "kB/s" },
+        "netOut": { "type": "integer", "description": "kB/s" },
+        "hbMs": { "type": "number", "description": "Heartbeat time, ms" },
+        "ping": { "type": ["integer", "null"] },
+        "maxPlayers": { "type": "integer" },
+        "discord": {
+          "type": "object",
+          "description": "DiscordFeed limiter counters since start: s sent, d dropped, f refused by Discord, t throttled.",
+          "properties": { "s": { "type": "integer" }, "d": { "type": "integer" }, "f": { "type": "integer" }, "t": { "type": "integer" } }
+        },
+        "err": {
+          "type": ["object", "null"],
+          "description": "Script errors during the last full minute: n count, s noisiest script, m its last message, at minute start.",
+          "properties": { "n": { "type": "integer" }, "s": { "type": "string" }, "m": { "type": "string" }, "at": { "type": "integer" } }
+        },
+        "players": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["u"],
+            "properties": {
+              "u": { "type": "integer", "description": "UserId" },
+              "n": { "type": "string", "description": "Name (dropped first if the entry gets too large)" },
+              "f": { "type": "string", "description": "Faction" },
+              "l": { "type": "integer", "description": "Level" },
+              "t": { "type": ["integer", "null"], "description": "Team index" },
+              "s": { "type": ["string", "null"], "description": "Subscription profile" },
+              "k": { "type": "integer" }, "d": { "type": "integer" },
+              "p": { "type": ["integer", "null"], "description": "Ping, ms" }
+            }
+          }
+        },
+        "hb": { "type": "integer", "description": "Unix time of this heartbeat" }
+      }
+    },
+    "event": {
+      "title": "Event (MemoryStore queue CC_Events_V1, expires after 2 days)",
+      "type": "object",
+      "required": ["id", "t", "at", "d"],
+      "properties": {
+        "id": { "type": "string", "description": "Idempotence key (e.g. season_closed:w12)" },
+        "t": { "enum": ["season_closed", "ranked_payout", "sanction", "ac_flag", "honeypot", "feedback", "cmd_ack"] },
+        "at": { "type": "integer" },
+        "job": { "type": "string", "description": "First 8 characters of the JobId" },
+        "pl": { "enum": ["hub", "match"] },
+        "d": { "type": "object" }
+      }
+    },
+    "command": {
+      "title": "Command (MessagingService topic FW_Event, under 1 KB)",
+      "type": "object",
+      "required": ["kind", "id", "op", "at", "exp"],
+      "properties": {
+        "kind": { "const": "cc_cmd" },
+        "id": { "type": "string" },
+        "op": { "enum": ["toast", "kick", "drain", "remove_item", "set_money"] },
+        "at": { "type": "integer" },
+        "exp": { "type": "integer" },
+        "u": { "type": "integer", "description": "Target player" },
+        "job": { "type": "string", "description": "Target JobId, or * for every server" }
+      }
+    }
+  }
+}

@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - name: Ruff
+        run: ruff check .
+      - name: Mypy
+        run: mypy
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r requirements-dev.txt
+      - run: pytest
+
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Interface Live et Fiches (API simulee)
+        run: node tests/e2e/browser_live.cjs
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build -t shroud-cc .
+      - name: Demo smoke test
+        run: |
+          docker run -d --name cc -p 8787:8787 -e CC_DEMO=1 shroud-cc
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8787/api/live && break; sleep 1; done
+          curl -sf http://127.0.0.1:8787/api/live | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['summary']['hubs'] == 2, d"
+          curl -sf http://127.0.0.1:8787/api/home | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['cards'], d"
+          docker logs cc

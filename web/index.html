@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Command Center · Shroud War</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600&display=swap" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2.5 20 6v6.2c0 4.6-3.3 8.4-8 9.3-4.7-.9-8-4.7-8-9.3V6z" fill="none" stroke="#c9a24b" stroke-width="1.6"/>
+        <path d="M8 12.5 11 15l5-6" fill="none" stroke="#c9a24b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Shroud War <span class="brand-sub">Command Center</span>
+    </div>
+    <!-- Etat du jeu en permanence : lu dans le cache du veilleur, sans appel Open Cloud de plus. -->
+    <nav id="pulse" class="pulse" aria-label="État du jeu"></nav>
+    <div class="top-actions">
+      <span id="status-pills" class="pills"></span>
+      <button id="palette-btn" class="btn ghost" title="Palette de commandes : écrans, joueurs, actions">Rechercher <kbd>Ctrl K</kbd></button>
+      <button id="refresh-btn" class="btn ghost" title="Relire les connexions et l'écran ouvert">Actualiser</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="nav">
+      <div class="nav-item" data-view="home"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M4 11 12 4l8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-6h4v6"/></svg></span>Accueil<span id="home-badge"></span></div>
+
+      <div class="nav-label">Live</div>
+      <div class="nav-item" data-view="live"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span>Serveurs<span id="live-badge"></span></div>
+      <div class="nav-item" data-view="trends"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M7 15l4-5 3 3 5-7"/></svg></span>Tendances</div>
+
+      <div class="nav-label">Joueurs</div>
+      <div class="nav-item" data-view="players"><span class="ni-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg></span>Fiches</div>
+      <div class="nav-item" data-view="security"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M12 8v5"/><path d="M12 16.5v.01"/></svg></span>Sécurité</div>
+      <div class="nav-item" data-view="give"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4"/><path d="M12 12v8"/></svg></span>Dons et wipe</div>
+
+      <div class="nav-label">Saison</div>
+      <div class="nav-item" data-view="factionwar"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M5 19 19 5"/><path d="M15 5h4v4"/><path d="M19 19 5 5"/><path d="M9 5H5v4"/></svg></span>Faction War</div>
+      <div class="nav-item" data-view="ranked"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M12 13v4"/><path d="M8 20h8"/></svg></span>Ranked</div>
+      <div class="nav-item" data-view="rewards"><span class="ni-icon"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M12 9v11"/><path d="M4 13h16"/><path d="M12 9c-1.5-4-5.5-3.5-5-.5M12 9c1.5-4 5.5-3.5 5-.5"/></svg></span>Récompenses</div>
+
+      <div class="nav-label">Diffusion</div>
+      <div class="nav-item" data-view="compose"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></span>Composer</div>
+      <div class="nav-item" data-view="templates"><span class="ni-icon"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="1"/><path d="M16 8V4H4v12h4"/></svg></span>Modèles</div>
+      <div class="nav-item" data-view="schedule"><span class="ni-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="1"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>Planificateur</div>
+      <div class="nav-item" data-view="notify"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></span>Notifications</div>
+      <div class="nav-item" data-view="history"><span class="ni-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>Journal</div>
+
+      <div class="nav-label">Réglages jeu</div>
+      <div class="nav-item" data-view="boost"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></span>Boosts</div>
+      <div class="nav-item" data-view="modes"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></span>Modes</div>
+      <div class="nav-item" data-view="configs"><span class="ni-icon"><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="4"/><circle cx="16" cy="12" r="2"/></svg></span>Configs</div>
+      <div class="nav-item" data-view="arsenal"><span class="ni-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>Arsenal</div>
+
+      <div class="nav-label">Système</div>
+      <div class="nav-item" data-view="health"><span class="ni-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8.5 12.5l2.5 2.5 4.5-5.5"/></svg></span>Santé</div>
+      <div class="nav-item" data-view="guide"><span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M5 18a2 2 0 0 1 2-2h11"/></svg></span>Guide</div>
+    </aside>
+
+    <main id="main" class="main"></main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

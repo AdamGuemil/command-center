@@ -1,0 +1,4 @@
+# Le serveur (server.py) et announce.py n'utilisent que la bibliotheque standard.
+# Ces paquets ne servent qu'aux scripts Discord : tools/setup_discord.py et bot.py.
+discord.py>=2.4
+aiohttp>=3.9

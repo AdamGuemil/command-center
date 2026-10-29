@@ -1,0 +1,88 @@
+{
+  "seasonLabelOffset": 0,
+  "seasonLabelPrefix": "Season",
+  "rankedTiers": [
+    {
+      "maxRank": 1,
+      "gold": 2000,
+      "xp": 1000,
+      "title": "",
+      "badges": []
+    },
+    {
+      "maxRank": 3,
+      "gold": 1000,
+      "xp": 500,
+      "title": "",
+      "badges": []
+    },
+    {
+      "maxRank": 10,
+      "gold": 500,
+      "xp": 400,
+      "title": "",
+      "badges": []
+    },
+    {
+      "maxRank": 25,
+      "gold": 500,
+      "xp": 400,
+      "title": "",
+      "badges": []
+    }
+  ],
+  "rewardsLast": {
+    "rewards": {
+      "1": {
+        "gold": 500,
+        "xp": 500,
+        "kit": "",
+        "badges": []
+      },
+      "2": {
+        "gold": 1500,
+        "xp": 1000,
+        "kit": "",
+        "badges": []
+      },
+      "3": {
+        "gold": 4000,
+        "xp": 2000,
+        "kit": "",
+        "badges": []
+      },
+      "4": {
+        "gold": 9000,
+        "xp": 4000,
+        "kit": "",
+        "badges": []
+      }
+    },
+    "rankBonuses": [
+      {
+        "maxRank": 1,
+        "gold": 0,
+        "xp": 0,
+        "title": "S%d CHAMPION",
+        "badges": [
+          2941030792563587
+        ]
+      },
+      {
+        "maxRank": 3,
+        "gold": 0,
+        "xp": 0,
+        "title": "S%d ELITE",
+        "badges": []
+      },
+      {
+        "maxRank": 10,
+        "gold": 0,
+        "xp": 0,
+        "title": "S%d TOP 10",
+        "badges": []
+      }
+    ],
+    "loserRatio": 0.5
+  }
+}

@@ -1,0 +1,156 @@
+[
+  {
+    "id": "launch",
+    "name": "Lancement",
+    "channel": "announcements",
+    "title": "🚀 Shroud War IS LIVE",
+    "body": "**The frontier is open. Drop in.**\n\nLoot, fight, extract — or lose everything trying.\n\n**⚔️ Three ways to fight**\n🎒 **EXFIL** — loot, survive, reach extraction. High risk, high reward.\n🥇 **DUALS** — ranked. ARENA elimination + BLITZ 5v5 attack/defend.\n💥 **DEATHMATCH** — pure PvP, nothing to lose.\n\n**🔫 50+ real weapons** with a full gunsmith — optics, lasers, grips, magazines, tracer rounds. Every part changes how the gun handles.\n\n**▶️ PLAY NOW:** {GAME_URL}\n\n**🎁 Launch week rewards** — see the pinned event post.\nPick your side in <#choose-your-faction> and find a squad in <#looking-for-group>.\n\n*Rusfor or Rainor. The frontier takes no neutrals.*",
+    "color": 15844367,
+    "footer": "Thanks for being here from day one. — The Shroud War team",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "countdown",
+    "name": "Compte à rebours",
+    "channel": "announcements",
+    "title": "⏳ 24 HOURS TO LAUNCH",
+    "body": "**Shroud War** goes live **tomorrow**.\n\n✅ Grab the **Launch Notification** role in <#notification-roles>\n✅ Pick your faction in <#choose-your-faction>\n✅ Find your squad in <#looking-for-group>\n\n⭐ **Favourite the game now** so you don't lose it: {GAME_URL}\n\nFirst 100 players in get the **Founder** role.",
+    "color": 15105570,
+    "footer": "See you on the frontier.",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "event",
+    "name": "Événement / Boost",
+    "channel": "announcements",
+    "title": "🎉 LAUNCH WEEK — Double XP & Faction War",
+    "body": "**All week long:**\n\n⚡ **Double XP** on every mode\n💰 **+50% gold** on successful EXFIL extractions\n🏆 **Faction War** — every EXFIL match scores for your faction. The winning side gets an exclusive role and an in-game reward.\n\n📊 Live standings in <#leaderboard-and-scores>\n🎬 Post your best moments in <#clips-and-screenshots> — the top 3 clips win a custom role.\n\n▶️ {GAME_URL}",
+    "color": 5793266,
+    "footer": "Event ends Sunday 23:59 UTC.",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "factionwar",
+    "name": "Faction War — en cours",
+    "channel": "leaderboard-and-scores",
+    "title": "🏆 FACTION WAR — Season {WEEK}",
+    "body": "**{LEADER} is leading the war.**\n\n🔴 **Rusfor** — {RUSFOR} pts\n🔵 **Rainor** — {RAINOR} pts\n\nGap: **{SPREAD}** points · Season ends in **{REMAINING}**\n\n▶️ {GAME_URL}",
+    "color": 15844367,
+    "footer": "Score en direct · la saison n'est pas terminée.",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "factionwar_result",
+    "name": "Faction War — résultat de saison",
+    "channel": "announcements",
+    "title": "🏆 SEASON {LAST_SEASON} — {LAST_WINNER} WINS",
+    "body": "**The war is over. {LAST_WINNER} takes the season.**\n\n🔴 **Rusfor** — {LAST_RUSFOR} pts\n🔵 **Rainor** — {LAST_RAINOR} pts\n\nRewards are already waiting in your mailbox — log in and claim them.\n\n**Season {WEEK} starts now.** Everything resets. Pick your side and push.\n\n▶️ {GAME_URL}",
+    "color": 15844367,
+    "footer": "Final scores of the closed season.",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "faction_win",
+    "name": "Faction — victoire (par faction)",
+    "channel": "faction-announcements",
+    "title": "🏆 SEASON {LAST_SEASON} — WE WON",
+    "body": "**{FACTION} takes the season.**\n\n🔴 Rusfor — {LAST_RUSFOR} pts\n🔵 Rainor — {LAST_RAINOR} pts\n\n**Top contributors of the faction**\n{FACTION_TOP}\n\nYour rewards are waiting in your mailbox — log in and claim them.\n\nNext season starts now. Hold the line.\n\n▶️ {GAME_URL}",
+    "color": 3066993,
+    "footer": "",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "faction_loss",
+    "name": "Faction — défaite (par faction)",
+    "channel": "faction-announcements",
+    "title": "⚔️ SEASON {LAST_SEASON} — WE LOST THIS ONE",
+    "body": "**{LAST_WINNER} took the season. Not next time.**\n\n🔴 Rusfor — {LAST_RUSFOR} pts\n🔵 Rainor — {LAST_RAINOR} pts\n\n**Top contributors of the faction**\n{FACTION_TOP}\n\nYou still earned rewards — log in and claim them.\n\nNew season, clean slate. Get in.\n\n▶️ {GAME_URL}",
+    "color": 15158332,
+    "footer": "",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "ranked_incoming",
+    "name": "Préavis de récompenses (24h)",
+    "channel": "leaderboard-and-scores",
+    "title": "⏳ RANKED REWARDS DROP {IN_24H}",
+    "body": "**Rewards for the ranked ladder are paid out {IN_24H}.**\n\n{RANKED_TOP}\n\n⚠️ **You must log in before the drop to receive your reward.**\nRewards are never stacked for inactive players — miss the window and that payout is gone.\n\nOne match is enough. Get in.\n\n▶️ {GAME_URL}",
+    "color": 15105570,
+    "footer": "Log in before the deadline to stay eligible.",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "ranked",
+    "name": "Classement ranked (DUALS)",
+    "channel": "leaderboard-and-scores",
+    "title": "🏅 RANKED LADDER — Top 10",
+    "body": "**The best DUALS players right now.**\n\n{RANKED_TOP}\n\nEvery ranked match moves you. Climb.\n\n▶️ {GAME_URL}",
+    "color": 5793266,
+    "footer": "Live from the game servers · updated on every match.",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "boost",
+    "name": "Boost activé (automatique)",
+    "channel": "announcements",
+    "title": "⚡ {BOOST_NAME} IS LIVE",
+    "body": "**A boost is active right now — jump in.**\n\n⚡ **×{BOOST_XP}** XP\n💰 **×{BOOST_GOLD}** gold\n⚔️ **×{BOOST_WAR}** faction war points\n\nEnds {BOOST_ENDS}\n\n▶️ {GAME_URL}",
+    "color": 15844367,
+    "footer": "Boost applied to every live server.",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "boost_end",
+    "name": "Boost coupé (automatique)",
+    "channel": "announcements",
+    "title": "⏹️ Boost ended",
+    "body": "The active boost has been turned off. Normal rates are back.\n\nThanks to everyone who played during it.\n\n▶️ {GAME_URL}",
+    "color": 10070709,
+    "footer": "",
+    "image": "",
+    "ping": ""
+  },
+  {
+    "id": "playtest",
+    "name": "Playtest",
+    "channel": "playtest-announcements",
+    "title": "🧪 PLAYTEST STARTING NOW",
+    "body": "We need players on the servers **right now** to stress-test matchmaking.\n\n🎯 **Focus:** DUALS BLITZ autofill (5v5 → 4v4 → 3v3)\n🐛 Report anything broken in <#bug-reports>\n\n▶️ {GAME_URL}\n\nEveryone who joins gets the **Playtester** role.",
+    "color": 3066993,
+    "footer": "Thanks for the help — this is how the game gets good.",
+    "image": "",
+    "ping": "everyone"
+  },
+  {
+    "id": "patch",
+    "name": "Patch notes",
+    "channel": "patch-notes",
+    "title": "🛠️ Patch v0.4.x",
+    "body": "**Fixes**\n- \n\n**Balance**\n- \n\n**New**\n- ",
+    "color": 5793266,
+    "footer": "Shroud War",
+    "image": "",
+    "ping": ""
+  },
+  {
+    "id": "maintenance",
+    "name": "Maintenance",
+    "channel": "announcements",
+    "title": "🔧 Maintenance in progress",
+    "body": "Servers are being updated. Matchmaking may be unstable for a few minutes.\n\nWe'll post here as soon as everything is back to normal.",
+    "color": 15105570,
+    "footer": "Sorry for the interruption.",
+    "image": "",
+    "ping": ""
+  }
+]

@@ -1,0 +1,17 @@
+.env
+.git
+.github
+**/__pycache__
+.venv
+venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+data/cc.db*
+data/demo
+data/history.json
+data/schedule.json
+data/live_*.json
+data/todo_state.json
+data/notifications.json
+tests/e2e

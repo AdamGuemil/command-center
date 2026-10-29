@@ -1,0 +1,27 @@
+# Secrets : jamais dans Git
+.env
+
+# Donnees locales du CC (base, journaux, reglages de ce PC)
+data/cc.db
+data/cc.db-journal
+data/history.json
+data/schedule.json
+data/live_events.json
+data/live_timeline.json
+data/todo_state.json
+data/notifications.json
+data/*.corrupt.json
+data/demo/
+
+# Bot Discord (lot 5b : passera en base)
+bot_data.json
+roblox_links.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
