@@ -176,6 +176,7 @@ C'est fini. Tu peux fermer les fenêtres PowerShell.
 | Symptôme | Cause et solution |
 |---|---|
 | « Out of capacity » à la création | Plus de place en Ampere dans ta région : prends `VM.Standard.E2.1.Micro` (étape 4), ou réessaie plus tard. |
+| `ssh` : « Connection timed out » | Oracle ne laisse pas passer le port 22. Dans *Default Security List*, il faut une règle d'entrée `0.0.0.0/0`, TCP, port **22**, en plus de `80,443` (si tu as modifié la règle 22 à l'étape 5 au lieu d'en ajouter une, recrée-la). Dans *Route Tables* > *Default Route Table*, il faut une règle `0.0.0.0/0` vers une *Internet Gateway*. Test depuis PowerShell : `Test-NetConnection <IP> -Port 22` doit afficher `TcpTestSucceeded : True`. |
 | `ssh` : « Permission denied (publickey) » | La clé collée à l'étape 4 n'est pas celle de ce PC. Recrée l'instance avec la bonne clé (étape 3). |
 | La page ne s'ouvre pas du tout | Ports 80 et 443 pas ouverts : refais l'étape 5. |
 | « Démarrage refusé » ou page d'erreur | Relance `sudo bash /opt/shroud-cc/deploy/configure.sh`. Le message dit ce qui manque. |

@@ -27,18 +27,27 @@ set_var() {   # set_var CLE valeur : remplace ou ajoute, sans jamais afficher la
   printf '%s=%s\n' "$key" "$val" >> "$tmp"
   cat "$tmp" > "$ENV" && rm -f "$tmp"
 }
-ask() {       # ask CLE "question" [secret] [defaut] : seulement si la valeur manque
-  local key="$1" question="$2" secret="${3:-}" def="${4:-}" val
+ask() {       # ask CLE "question" [secret] [defaut] [motif] : seulement si la valeur manque
+  local key="$1" question="$2" secret="${3:-}" def="${4:-}" pattern="${5:-}" val
   [ -n "$(get "$key")" ] && return 0
   [ -n "$def" ] && question="$question [Entree : $def]"
   while true; do
     if [ -n "$secret" ]; then read -r -s -p "  $question : " val; echo; else read -r -p "  $question : " val; fi
-    val="${val:-$def}"
-    [ -n "$val" ] && break
-    echo "  (obligatoire)"
+    val="$(printf '%s' "${val:-$def}" | tr -d '[:space:]')"
+    if [ -z "$val" ]; then echo "  (obligatoire)"; continue; fi
+    if [ -n "$pattern" ] && ! [[ "$val" =~ $pattern ]]; then echo "  Format inattendu, recommence."; continue; fi
+    break
   done
   set_var "$key" "$val"
 }
+IDS='^[0-9]{5,25}$'
+ID_LIST='^[0-9]{5,25}(,[0-9]{5,25})*$'
+
+# Refaire une reponse : sudo bash configure.sh --reset   (oublie les reponses de connexion)
+if [ "${1:-}" = "--reset" ]; then
+  for k in CC_DOMAIN CC_PUBLIC_URL DISCORD_CLIENT_ID DISCORD_CLIENT_SECRET CC_ADMINS; do set_var "$k" ""; done
+  echo "  Reponses de connexion effacees : elles vont etre redemandees."
+fi
 
 # 1. Reprise du PC -----------------------------------------------------------------------
 if [ -f /tmp/cc.env ]; then
@@ -64,19 +73,19 @@ set_var CC_PUBLIC_URL "https://$DOMAIN"
 
 # 3. Ce qui manque ----------------------------------------------------------------------
 say "Jeu et bot (deja remplis si ton .env de PC a ete repris)"
-ask ROBLOX_UNIVERSE_ID "Universe ID Roblox"
-ask ROBLOX_PLACE_ID "Place ID du HUB"
+ask ROBLOX_UNIVERSE_ID "Universe ID Roblox" "" "" "$IDS"
+ask ROBLOX_PLACE_ID "Place ID du HUB" "" "" "$IDS"
 ask ROBLOX_OPENCLOUD_KEY "Cle Open Cloud" secret
 ask DISCORD_BOT_TOKEN "Token du bot Discord" secret
-ask DISCORD_GUILD_ID "ID du serveur Discord"
+ask DISCORD_GUILD_ID "ID du serveur Discord" "" "" "$IDS"
 
 say "Connexion a la console (Discord Developer Portal > ton application > OAuth2)"
 echo "  Ajoute d'abord dans « Redirects » exactement :  https://$DOMAIN/auth/callback"
-ask DISCORD_CLIENT_ID "Client ID"
+ask DISCORD_CLIENT_ID "Client ID" "" "" "$IDS"
 ask DISCORD_CLIENT_SECRET "Client Secret" secret
 echo "  Ton identifiant Discord : Parametres > Avances > Mode developpeur, puis clic droit"
 echo "  sur ton nom > Copier l'identifiant. Plusieurs : separes par des virgules."
-ask CC_ADMINS "Identifiant(s) Discord administrateur"
+ask CC_ADMINS "Identifiant(s) Discord administrateur" "" "" "$ID_LIST"
 set_var CC_BOT 1                                  # le bot Discord tourne ici, plus sur le PC
 if [ -z "$(get ROBLOX_WEBHOOK_SECRET)" ]; then
   set_var ROBLOX_WEBHOOK_SECRET "$(openssl rand -hex 32)"
